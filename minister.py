@@ -7,8 +7,11 @@ import os
 @click.command()
 @click.argument('target', type=click.Path(exists=True, file_okay=False,
                                           resolve_path=True))
-def minister(target):
-    print(pformat(iterate_input(target, 0)))
+@click.option('-d', '--depth', default=0, help='How many directories to '
+              'descend into. All files encountered will be added but only '
+              'folders at provided depth. Default 0.')
+def minister(target, depth):
+    print(pformat(iterate_input(target, depth)))
 
 
 def iterate_input(path, depth):
