@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import click
-from pprint import pformat
+import json
 import os
 
 
@@ -10,8 +10,12 @@ import os
 @click.option('-d', '--depth', default=0, help='How many directories to '
               'descend into. All files encountered will be added but only '
               'folders at provided depth. Default 0.')
-def minister(target, depth):
-    print(pformat(iterate_input(target, depth)))
+@click.option('-s', '--storage-file', default='minister-storage.json',
+              help='The file location to store processed files so duplication '
+              'doesn\'t happen in the future.')
+def minister(target, depth, storage_file):
+    targets = iterate_input(target, depth)
+    save_output(storage_file, [x[0] for x in targets])
 
 
 def iterate_input(path, depth):
@@ -30,6 +34,14 @@ def iterate_input(path, depth):
 
 def should_be_included(path, at_depth):
     return at_depth or not os.path.isdir(path)
+
+
+def save_output(file, processed):
+    f = open(file, 'w')
+    f.write(json.dumps(processed, sort_keys=True, indent=4,
+                       separators=(',', ': ')))
+    f.write('\n')
+    f.close()
 
 if __name__ == '__main__':
     minister()
