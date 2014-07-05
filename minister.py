@@ -1,8 +1,14 @@
 #!/usr/bin/python
 import click
 import json
-from pprint import pprint
+import logging
+from pprint import pformat
 import os
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d: %(message)s',
+    level=logging.WARNING)
+log = logging.getLogger(__name__)
 
 
 @click.command()
@@ -14,11 +20,22 @@ import os
 @click.option('-s', '--storage-file', default='minister-storage.json',
               help='The file location to store processed files so duplication '
               'doesn\'t happen in the future.')
-def minister(target, depth, storage_file):
-    already_processed = load_storage_file(storage_file)
-    targets = iterate_input(target, depth, already_processed)
-    pprint(targets)
-    save_storage_fle(storage_file, [x[0] for x in targets] + already_processed)
+@click.option('-v', '--verbose', count=True,
+              help='Logging verbosity, -vv for very verbose.')
+def minister(target, depth, storage_file, verbose):
+    if verbose == 1:
+        log.setLevel(logging.INFO)
+    elif verbose != 0:
+        log.setLevel(logging.DEBUG)
+
+    try:
+        already_processed = load_storage_file(storage_file)
+        targets = iterate_input(target, depth, already_processed)
+        log.info('To process:\n{0}'.format(pformat(targets)))
+        save_storage_fle(storage_file,
+                         [x[0] for x in targets] + already_processed)
+    except Exception, e:
+        log.exception(e)
 
 
 def iterate_input(path, depth, already_processed):
@@ -41,6 +58,8 @@ def should_be_included(path, at_depth, already_processed):
 
 
 def save_storage_fle(file, processed):
+    log.info('Write processed list: {0}'.format(file))
+    log.debug('Value:\n{0}'.format(pformat(processed)))
     f = open(file, 'w')
     f.write(json.dumps(processed, sort_keys=True, indent=4,
                        separators=(',', ': ')))
@@ -50,12 +69,16 @@ def save_storage_fle(file, processed):
 
 def load_storage_file(file):
     try:
+        log.info('Loading previously processed file: %s'.format(file))
         f = open(file, 'r')
         lines = f.readlines()
         lines = json.loads(''.join(lines))
+        log.debug('Value:\n{0}'.format(pformat(lines)))
         f.close()
         return lines
-    except:
+    except Exception, e:
+        log.info('Anticipated error loading processed file. {0}: {1}'
+                 .format(e.errno, e.strerror))
         return []
 
 if __name__ == '__main__':
