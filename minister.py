@@ -34,8 +34,8 @@ def minister(target, depth, storage_file, verbose):
         log.info('To process:\n{0}'.format(pformat(targets)))
         save_storage_fle(storage_file,
                          [x[0] for x in targets] + already_processed)
-    except Exception, e:
-        log.exception(e)
+    except:
+        log.exception('', exc_info=True)
 
 
 def iterate_input(path, depth, already_processed):
@@ -69,16 +69,15 @@ def save_storage_fle(file, processed):
 
 def load_storage_file(file):
     try:
-        log.info('Loading previously processed file: %s'.format(file))
+        log.info('Loading previously processed file: {0}'.format(file))
         f = open(file, 'r')
         lines = f.readlines()
         lines = json.loads(''.join(lines))
         log.debug('Value:\n{0}'.format(pformat(lines)))
         f.close()
         return lines
-    except Exception, e:
-        log.info('Anticipated error loading processed file. {0}: {1}'
-                 .format(e.errno, e.strerror))
+    except:
+        log.info('Anticipated error loading processed file.', exc_info=True)
         return []
 
 if __name__ == '__main__':
