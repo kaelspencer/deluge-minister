@@ -3,12 +3,16 @@ import click
 import json
 import logging
 from pprint import pformat
+import StringIO
 import os
 
 logging.basicConfig(
-    format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d: %(message)s',
+    format='%(asctime)-15s %(levelname)-8s %(filename)s:%(lineno)d: '
+           '%(message)s',
     level=logging.WARNING)
 log = logging.getLogger(__name__)
+log_string = StringIO.StringIO()
+log.addHandler(logging.StreamHandler(log_string))
 
 
 @click.command()
@@ -36,6 +40,8 @@ def minister(target, depth, storage_file, verbose):
                          [x[0] for x in targets] + already_processed)
     except:
         log.exception('', exc_info=True)
+
+    log_string.close()
 
 
 def iterate_input(path, depth, already_processed):
