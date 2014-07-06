@@ -1,10 +1,13 @@
 #!/usr/bin/python
+from datetime import datetime
+from email.mime.text import MIMEText
+from pprint import pformat
 import click
 import json
 import logging
-from pprint import pformat
-import StringIO
 import os
+import smtplib
+import StringIO
 
 logging.basicConfig(
     format='%(asctime)-15s %(levelname)-8s %(filename)s:%(lineno)d: '
@@ -18,6 +21,12 @@ log.addHandler(logging.StreamHandler(log_string))
 @click.command()
 @click.argument('target', type=click.Path(exists=True, file_okay=False,
                                           resolve_path=True))
+@click.option('--email-smtp-username', help='From email address.')
+@click.option('--email-smtp-password', help='From email password.')
+@click.option('--email-smtp-server', default='smtp.gmail.com',
+              help='From email server.')
+@click.option('--email-smtp-port', default=587, help='From email port.')
+@click.option('--email-to', help='To email address.')
 @click.option('-d', '--depth', default=0, help='How many directories to '
               'descend into. All files encountered will be added but only '
               'folders at provided depth. Default 0.')
@@ -26,7 +35,9 @@ log.addHandler(logging.StreamHandler(log_string))
               'doesn\'t happen in the future.')
 @click.option('-v', '--verbose', count=True,
               help='Logging verbosity, -vv for very verbose.')
-def minister(target, depth, storage_file, verbose):
+def minister(target, depth, storage_file, verbose, email_smtp_username,
+             email_smtp_password, email_smtp_server, email_smtp_port,
+             email_to):
     if verbose == 1:
         log.setLevel(logging.INFO)
     elif verbose != 0:
@@ -38,6 +49,9 @@ def minister(target, depth, storage_file, verbose):
         log.info('To process:\n{0}'.format(pformat(targets)))
         save_storage_fle(storage_file,
                          [x[0] for x in targets] + already_processed)
+        send_log_email(email_to, log_string.getvalue(), email_smtp_server,
+                       email_smtp_port, email_smtp_username,
+                       email_smtp_password)
     except:
         log.exception('', exc_info=True)
 
@@ -85,6 +99,28 @@ def load_storage_file(file):
     except:
         log.info('Anticipated error loading processed file.', exc_info=True)
         return []
+
+
+def send_log_email(to, body, smtp_server, smtp_port, smtp_username,
+                   smtp_password):
+    log.info('Starting email')
+    msg = MIMEText('<html><body><pre><code>{0}</code></pre></body></html>'
+                   .format(body), 'html')
+    msg['Subject'] = 'deluge-minister log at {0}'.format(
+        datetime.now().isoformat())
+    msg['From'] = smtp_username
+    msg['To'] = to
+
+    try:
+        s = smtplib.SMTP(smtp_server, smtp_port)
+        s.ehlo()
+        s.starttls()
+        s.ehlo
+        s.login(smtp_username, smtp_password)
+        s.sendmail(smtp_username, [to], msg.as_string())
+        s.close()
+    except smtplib.SMTPException:
+        log.error('Failed to send log email.')
 
 if __name__ == '__main__':
     minister()
