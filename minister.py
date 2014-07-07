@@ -21,12 +21,16 @@ log.addHandler(logging.StreamHandler(log_string))
 @click.command()
 @click.argument('target', type=click.Path(exists=True, file_okay=False,
                                           resolve_path=True))
-@click.option('--email-smtp-username', help='From email address.')
-@click.option('--email-smtp-password', help='From email password.')
-@click.option('--email-smtp-server', default='smtp.gmail.com',
-              help='From email server.')
-@click.option('--email-smtp-port', default=587, help='From email port.')
-@click.option('--email-to', help='To email address.')
+@click.option('--email-username', help='Sender\'s email address. Requires '
+              'password and recipient options.')
+@click.option('--email-password', help='Sender\'s email password. Requires '
+              'username and recipient options.')
+@click.option('--email-server', default='smtp.gmail.com',
+              help='SMTP email server. Default: smtp.gmail.com')
+@click.option('--email-port', default=587,
+              help='SMTP server port. Default: 587')
+@click.option('--email-recipient', help='Recipient\'s email address. Requires '
+              'username and password options.')
 @click.option('-d', '--depth', default=0, help='How many directories to '
               'descend into. All files encountered will be added but only '
               'folders at provided depth. Default 0.')
@@ -35,9 +39,8 @@ log.addHandler(logging.StreamHandler(log_string))
               'doesn\'t happen in the future.')
 @click.option('-v', '--verbose', count=True,
               help='Logging verbosity, -vv for very verbose.')
-def minister(target, depth, storage_file, verbose, email_smtp_username,
-             email_smtp_password, email_smtp_server, email_smtp_port,
-             email_to):
+def minister(target, depth, storage_file, verbose, email_username,
+             email_password, email_server, email_port, email_recipient):
     if verbose == 1:
         log.setLevel(logging.INFO)
     elif verbose != 0:
@@ -49,9 +52,8 @@ def minister(target, depth, storage_file, verbose, email_smtp_username,
         log.info('To process:\n{0}'.format(pformat(targets)))
         save_storage_fle(storage_file,
                          [x[0] for x in targets] + already_processed)
-        send_log_email(email_to, log_string.getvalue(), email_smtp_server,
-                       email_smtp_port, email_smtp_username,
-                       email_smtp_password)
+        send_log_email(email_recipient, log_string.getvalue(), email_server,
+                       email_port, email_username, email_password)
     except:
         log.exception('', exc_info=True)
 
