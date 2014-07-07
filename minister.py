@@ -103,6 +103,13 @@ def load_storage_file(file):
 
 def send_log_email(to, body, smtp_server, smtp_port, smtp_username,
                    smtp_password):
+    if not smtp_server or not smtp_username or not smtp_password or not to:
+        if smtp_username or smtp_password or to:
+            # Username, password, and the to address must be supplied by the
+            # user. If they supplied one and not the other, print a message.
+            log.warning('Not sending email. Missing parameters.')
+        return
+
     log.info('Starting email')
     msg = MIMEText('<html><body><pre><code>{0}</code></pre></body></html>'
                    .format(body), 'html')
@@ -120,7 +127,7 @@ def send_log_email(to, body, smtp_server, smtp_port, smtp_username,
         s.sendmail(smtp_username, [to], msg.as_string())
         s.close()
     except smtplib.SMTPException:
-        log.error('Failed to send log email.')
+        log.exception('Failed to send log email.', exc_info=True)
 
 if __name__ == '__main__':
     minister()
