@@ -21,6 +21,11 @@ log.addHandler(logging.StreamHandler(log_string))
 @click.command()
 @click.argument('target', type=click.Path(exists=True, file_okay=False,
                                           resolve_path=True))
+@click.option('-s', '--storage-file', default='minister-storage.json',
+              help='The file location to store processed files so duplication '
+              'doesn\'t happen in the future.')
+@click.option('--email-recipient', help='Recipient\'s email address. Requires '
+              'username and password options.')
 @click.option('--email-username', help='Sender\'s email address. Requires '
               'password and recipient options.')
 @click.option('--email-password', help='Sender\'s email password. Requires '
@@ -29,14 +34,9 @@ log.addHandler(logging.StreamHandler(log_string))
               help='SMTP email server. Default: smtp.gmail.com')
 @click.option('--email-port', default=587,
               help='SMTP server port. Default: 587')
-@click.option('--email-recipient', help='Recipient\'s email address. Requires '
-              'username and password options.')
 @click.option('-d', '--depth', default=0, help='How many directories to '
               'descend into. All files encountered will be added but only '
               'folders at provided depth. Default 0.')
-@click.option('-s', '--storage-file', default='minister-storage.json',
-              help='The file location to store processed files so duplication '
-              'doesn\'t happen in the future.')
 @click.option('-v', '--verbose', count=True,
               help='Logging verbosity, -vv for very verbose.')
 def minister(target, depth, storage_file, verbose, email_username,
