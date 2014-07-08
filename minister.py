@@ -61,6 +61,12 @@ def minister(target, depth, storage_file, verbose, email_username,
 
 
 def iterate_input(path, depth, already_processed):
+    """Recursively iterate through the path looking for items to process.
+
+    Recursively descend through the path. All symbolic links are ignored. All
+    non-folder items are considered. Only folder items at the depth are
+    considered.
+    """
     result = []
 
     for dir in os.listdir(path):
@@ -75,11 +81,13 @@ def iterate_input(path, depth, already_processed):
 
 
 def should_be_included(path, at_depth, already_processed):
+    """Determines if the path item should be processed."""
     valid = at_depth or not os.path.isdir(path)
     return valid and path not in already_processed
 
 
 def save_storage_fle(file, processed):
+    """Output the processed list to a file."""
     log.info('Write processed list: {0}'.format(file))
     log.debug('Value:\n{0}'.format(pformat(processed)))
     f = open(file, 'w')
@@ -90,6 +98,12 @@ def save_storage_fle(file, processed):
 
 
 def load_storage_file(file):
+    """Attempt to load the saved processed list.
+
+    Load the saved file, parse the json, and return the list. If the file
+    doesn't exist, catch the exception, log out a statement, and return an
+    empty list.
+    """
     try:
         log.info('Loading previously processed file: {0}'.format(file))
         f = open(file, 'r')
@@ -103,12 +117,17 @@ def load_storage_file(file):
         return []
 
 
-def send_log_email(to, body, smtp_server, smtp_port, smtp_username,
-                   smtp_password):
-    if not smtp_server or not smtp_username or not smtp_password or not to:
-        if smtp_username or smtp_password or to:
-            # Username, password, and the to address must be supplied by the
-            # user. If they supplied one and not the other, print a message.
+def send_log_email(recipient, body, server, port, username, password):
+    """Send the log statements over email.
+
+    The SMTP information is provided and used to send the log statements to the
+    recipient. Server, username, password, and recipient must be set. If only
+    some of them are set a warning is printed out.
+    """
+    if not server or not username or not password or not recipient:
+        if username or password or recipient:
+            # Username, password, and the recipient address must be supplied by
+            # the user. If they supplied one and not the other print a message.
             log.warning('Not sending email. Missing parameters.')
         return
 
@@ -117,16 +136,16 @@ def send_log_email(to, body, smtp_server, smtp_port, smtp_username,
                    .format(body), 'html')
     msg['Subject'] = 'deluge-minister log at {0}'.format(
         datetime.now().isoformat())
-    msg['From'] = smtp_username
-    msg['To'] = to
+    msg['From'] = username
+    msg['To'] = recipient
 
     try:
-        s = smtplib.SMTP(smtp_server, smtp_port)
+        s = smtplib.SMTP(server, port)
         s.ehlo()
         s.starttls()
         s.ehlo
-        s.login(smtp_username, smtp_password)
-        s.sendmail(smtp_username, [to], msg.as_string())
+        s.login(username, password)
+        s.sendmail(username, [recipient], msg.as_string())
         s.close()
     except smtplib.SMTPException:
         log.exception('Failed to send log email.', exc_info=True)
