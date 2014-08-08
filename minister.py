@@ -181,7 +181,7 @@ def send_log_email(recipient, body, server, port, username, password):
             log.warning('Not sending email. Missing parameters.')
         return
 
-    log.info('Starting email')
+    log.info('Start sending email.')
     msg = MIMEText('<html><body><pre><code>{0}</code></pre></body></html>'
                    .format(body), 'html')
     msg['Subject'] = 'deluge-minister log at {0}'.format(
@@ -197,6 +197,7 @@ def send_log_email(recipient, body, server, port, username, password):
         s.login(username, password)
         s.sendmail(username, [recipient], msg.as_string())
         s.close()
+        log.info('Finished sending email.')
     except smtplib.SMTPException:
         log.exception('Failed to send log email.', exc_info=True)
 
