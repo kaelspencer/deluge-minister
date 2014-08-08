@@ -55,10 +55,10 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
         targets = iterate_input(target, depth, already_processed)
         process(targets, rules)
 
-        # save_storage_fle(storage_file,
-        #                  [x[0] for x in targets] + already_processed)
-        # send_log_email(email_recipient, log_string.getvalue(), email_server,
-        #                email_port, email_username, email_password)
+        save_storage_fle(storage_file,
+                         [x[0] for x in targets] + already_processed)
+        send_log_email(email_recipient, log_string.getvalue(), email_server,
+                       email_port, email_username, email_password)
     except:
         log.exception('', exc_info=True)
 
@@ -92,6 +92,7 @@ def should_be_included(path, at_depth, already_processed):
 
 
 def load_rules(file):
+    """Load the JSON rules file and explode the data."""
     log.info('Loading rule file: {0}'.format(file))
     f = open(file, 'r')
     rules = json.loads(''.join(f.readlines()))
@@ -100,6 +101,11 @@ def load_rules(file):
 
 
 def process(targets, rules):
+    """Process targets using the rules.
+
+    Iterate through the targets looking for rule matches. There should be a set
+    of rules for files and another for folders.
+    """
     log.info('To process:\n{0}'.format(pformat(targets)))
     log.debug('Rules:\n{0}'.format(pformat(rules)))
 
@@ -108,7 +114,7 @@ def process(targets, rules):
             # Folder
             pass
         else:
-            # File
+            # This is a file. Look for matching rules.
             for rule in rules['file']:
                 if re.match(rule['match'], target[0]):
                     print('Found a match: {0} with {1}'.format(target,
