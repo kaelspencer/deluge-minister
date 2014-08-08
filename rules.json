@@ -3,5 +3,6 @@
         "match": "(.*)minister.py$"
     },{
         "match": "(.*)\\.md$"
-    }]
+    }],
+    "folder": []
 }

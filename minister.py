@@ -97,6 +97,21 @@ def load_rules(file):
     f = open(file, 'r')
     rules = json.loads(''.join(f.readlines()))
     f.close()
+
+    # process assumes that both 'file' and 'folder' rules exist under rules.
+    # Ensure they do. If neither exist, throw an error. Something needs to be
+    # defined.
+    if 'file' not in rules and 'folder' not in rules:
+        raise Exception('No rules found in rules file. Looking for "file" '
+                        'and/or "folder".')
+    else:
+        if 'file' not in rules:
+            log.debug('File rules not found, adding empty ruleset.')
+            rules['file'] = []
+        if 'folder' not in rules:
+            log.debug('Folder rules not found, adding empty ruleset.')
+            rules['folder'] = []
+
     return rules
 
 
