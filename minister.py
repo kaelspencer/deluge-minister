@@ -6,6 +6,7 @@ import click
 import json
 import logging
 import os
+import re
 import smtplib
 import StringIO
 
@@ -21,6 +22,8 @@ log.addHandler(logging.StreamHandler(log_string))
 @click.command()
 @click.argument('target', type=click.Path(exists=True, file_okay=False,
                                           resolve_path=True))
+@click.argument('rulefile', type=click.Path(exists=True, file_okay=True,
+                                            resolve_path=True))
 @click.option('-s', '--storage-file', default='minister-storage.json',
               help='The file location to store processed files so duplication '
               'doesn\'t happen in the future.')
@@ -39,7 +42,7 @@ log.addHandler(logging.StreamHandler(log_string))
               'folders at provided depth. Default 0.')
 @click.option('-v', '--verbose', count=True,
               help='Logging verbosity, -vv for very verbose.')
-def minister(target, depth, storage_file, verbose, email_username,
+def minister(target, rulefile, depth, storage_file, verbose, email_username,
              email_password, email_server, email_port, email_recipient):
     if verbose == 1:
         log.setLevel(logging.INFO)
@@ -48,12 +51,14 @@ def minister(target, depth, storage_file, verbose, email_username,
 
     try:
         already_processed = load_storage_file(storage_file)
+        rules = load_rules(rulefile)
         targets = iterate_input(target, depth, already_processed)
-        log.info('To process:\n{0}'.format(pformat(targets)))
-        save_storage_fle(storage_file,
-                         [x[0] for x in targets] + already_processed)
-        send_log_email(email_recipient, log_string.getvalue(), email_server,
-                       email_port, email_username, email_password)
+        process(targets, rules)
+
+        # save_storage_fle(storage_file,
+        #                  [x[0] for x in targets] + already_processed)
+        # send_log_email(email_recipient, log_string.getvalue(), email_server,
+        #                email_port, email_username, email_password)
     except:
         log.exception('', exc_info=True)
 
@@ -84,6 +89,30 @@ def should_be_included(path, at_depth, already_processed):
     """Determines if the path item should be processed."""
     valid = at_depth or not os.path.isdir(path)
     return valid and path not in already_processed
+
+
+def load_rules(file):
+    log.info('Loading rule file: {0}'.format(file))
+    f = open(file, 'r')
+    rules = json.loads(''.join(f.readlines()))
+    f.close()
+    return rules
+
+
+def process(targets, rules):
+    log.info('To process:\n{0}'.format(pformat(targets)))
+    log.debug('Rules:\n{0}'.format(pformat(rules)))
+
+    for target in targets:
+        if target[1]:
+            # Folder
+            pass
+        else:
+            # File
+            for rule in rules['file']:
+                if re.match(rule['match'], target[0]):
+                    print('Found a match: {0} with {1}'.format(target,
+                                                               rule['match']))
 
 
 def save_storage_fle(file, processed):

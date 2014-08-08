@@ -1,0 +1,7 @@
+{
+    "file": [{
+        "match": "(.*)minister.py$"
+    },{
+        "match": "(.*)\\.md$"
+    }]
+}
