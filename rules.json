@@ -4,5 +4,7 @@
     },{
         "match": "(.*)\\.md$"
     }],
-    "folder": []
+    "folder": [{
+        "match": "(.*)\\.git$"
+    }]
 }

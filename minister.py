@@ -125,15 +125,12 @@ def process(targets, rules):
     log.debug('Rules:\n{0}'.format(pformat(rules)))
 
     for target in targets:
-        if target[1]:
-            # Folder
-            pass
-        else:
-            # This is a file. Look for matching rules.
-            for rule in rules['file']:
-                if re.match(rule['match'], target[0]):
-                    print('Found a match: {0} with {1}'.format(target,
-                                                               rule['match']))
+        typekey = 'folder' if target[1] else 'file'
+        # Look for matching rules based on the type.
+        for rule in rules[typekey]:
+            if re.match(rule['match'], target[0]):
+                print('Found a match: {0} with {1}, type {2}'
+                      .format(target, rule['match'], typekey))
 
 
 def save_storage_fle(file, processed):
