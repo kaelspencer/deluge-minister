@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import smtplib
+import subprocess
 import StringIO
 
 logging.basicConfig(
@@ -131,6 +132,9 @@ def process(targets, rules):
             if re.match(rule['match'], target[0]):
                 print('Found a match: {0} with {1}, type {2}'
                       .format(target, rule['match'], typekey))
+                cmd = rule['command'].format(target[0])
+                log.info(cmd)
+                log.warn(subprocess.check_output(cmd.split()))
 
 
 def save_storage_fle(file, processed):

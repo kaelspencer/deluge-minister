@@ -1,10 +1,13 @@
 {
     "file": [{
-        "match": "(.*)minister.py$"
+        "match": "(.*)minister.py$",
+        "command": "ls -lh {0}"
     },{
-        "match": "(.*)\\.md$"
+        "match": "(.*)\\.md$",
+        "command": "ls -lh {0}"
     }],
     "folder": [{
-        "match": "(.*)\\.git$"
+        "match": "(.*)\\.git$",
+        "command": "ls -lhd {0}"
     }]
 }
