@@ -113,7 +113,29 @@ def load_rules(file):
             log.debug('Folder rules not found, adding empty ruleset.')
             rules['folder'] = []
 
-    return rules
+    # Now validate that each rule has the required values.
+    processed_rules = {
+        'file': [],
+        'folder': []
+    }
+
+    def validate_rule(rule):
+        if ('match' in rule and type(rule['match']) is unicode and
+                'command' in rule and type(rule['command']) is unicode):
+            return True
+        else:
+            log.warn('Ignoring malformed rule: {0}'.format(rule))
+            return False
+
+    for rule in rules['file']:
+        if validate_rule(rule):
+            processed_rules['file'].append(rule)
+
+    for rule in rules['folder']:
+        if validate_rule(rule):
+            processed_rules['folder'].append(rule)
+
+    return processed_rules
 
 
 def process(targets, rules):
@@ -130,11 +152,11 @@ def process(targets, rules):
         # Look for matching rules based on the type.
         for rule in rules[typekey]:
             if re.match(rule['match'], target[0]):
-                print('Found a match: {0} with {1}, type {2}'
-                      .format(target, rule['match'], typekey))
+                log.info('Found a match: {0} with {1}, type {2}'
+                         .format(target[0], rule['match'], typekey))
                 cmd = rule['command'].format(target[0])
                 log.info(cmd)
-                log.warn(subprocess.check_output(cmd.split()))
+                log.info(subprocess.check_output(cmd.split()))
 
 
 def save_storage_fle(file, processed):
