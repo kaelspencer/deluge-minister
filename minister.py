@@ -124,7 +124,7 @@ def load_rules(file):
                 'command' in rule and type(rule['command']) is unicode):
             return True
         else:
-            log.warn('Ignoring malformed rule: {0}'.format(rule))
+            log.info('Ignoring malformed rule: {0}'.format(rule))
             return False
 
     for rule in rules['file']:
@@ -155,8 +155,8 @@ def process(targets, rules):
                 log.info('Found a match: {0} with {1}, type {2}'
                          .format(target[0], rule['match'], typekey))
                 cmd = rule['command'].format(target[0])
-                log.info(cmd)
-                log.info(subprocess.check_output(cmd.split()))
+                log.warn(cmd)
+                log.warn(subprocess.check_output(cmd.split()))
 
 
 def save_storage_fle(file, processed):
@@ -186,7 +186,7 @@ def load_storage_file(file):
         f.close()
         return lines
     except:
-        log.info('Anticipated error loading processed file.', exc_info=True)
+        log.debug('Anticipated error loading processed file.', exc_info=True)
         return []
 
 
@@ -201,7 +201,7 @@ def send_log_email(recipient, body, server, port, username, password):
         if username or password or recipient:
             # Username, password, and the recipient address must be supplied by
             # the user. If they supplied one and not the other print a message.
-            log.warning('Not sending email. Missing parameters.')
+            log.error('Not sending email. Missing parameters.')
         return
 
     log.info('Start sending email.')
