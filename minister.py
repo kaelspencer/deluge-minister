@@ -174,7 +174,7 @@ def process(targets, rules):
                 for cmd in rule['command']:
                     cmd = cmd.format(target[0])
                     log.warn(cmd)
-                    log.warn(subprocess.check_output(cmd.split()))
+                    log.warn(subprocess.check_output(cmd.split()).rstrip('\n'))
 
 
 def save_storage_fle(file, processed):
