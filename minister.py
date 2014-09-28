@@ -120,12 +120,29 @@ def load_rules(file):
     }
 
     def validate_rule(rule):
-        if ('match' in rule and type(rule['match']) is unicode and
-                'command' in rule and type(rule['command']) is unicode):
-            return True
+        valid = True
+
+        if 'command' in rule and type(rule['command']) is unicode:
+            # The rules file has a string for a command. Normalize it into an
+            # array.
+            rule['command'] = [rule['command']]
+        elif ('command' in rule and type(rule['command']) is list and
+                len(rule['command']) > 0):
+            # The rules file has an array. Ensure all elements are strings.
+            for cmd in rule['command']:
+                if type(cmd) is not unicode:
+                    valid = False
+                    break
         else:
+            valid = False
+
+        if 'match' not in rule or type(rule['match']) is not unicode:
+            valid = False
+
+        if not valid:
             log.info('Ignoring malformed rule: {0}'.format(rule))
-            return False
+
+        return valid
 
     for rule in rules['file']:
         if validate_rule(rule):
@@ -154,9 +171,10 @@ def process(targets, rules):
             if re.match(rule['match'], target[0]):
                 log.info('Found a match: {0} with {1}, type {2}'
                          .format(target[0], rule['match'], typekey))
-                cmd = rule['command'].format(target[0])
-                log.warn(cmd)
-                log.warn(subprocess.check_output(cmd.split()))
+                for cmd in rule['command']:
+                    cmd = cmd.format(target[0])
+                    log.warn(cmd)
+                    log.warn(subprocess.check_output(cmd.split()))
 
 
 def save_storage_fle(file, processed):

@@ -4,7 +4,13 @@
         "command": "ls -lh {0}"
     },{
         "match": "(.*)\\.md$",
-        "command": ["ls -lh {0}"]
+        "command": ["ls -lh {0}", "echo {0}"]
+    },{
+        "match": 0,
+        "command": "bad match"
+    },{
+        "match": "bad command",
+        "command": 0
     }],
     "folder": [{
         "match": "(.*)\\.git$",
