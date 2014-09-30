@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import smtplib
 import subprocess
 import StringIO
@@ -165,16 +166,20 @@ def process(targets, rules):
     log.debug('Rules:\n{0}'.format(pformat(rules)))
 
     for target in targets:
-        typekey = 'folder' if target[1] else 'file'
-        # Look for matching rules based on the type.
-        for rule in rules[typekey]:
-            if re.match(rule['match'], target[0]):
-                log.info('Found a match: {0} with {1}, type {2}'
-                         .format(target[0], rule['match'], typekey))
-                for cmd in rule['command']:
-                    cmd = cmd.format(target[0])
-                    log.warn(cmd)
-                    log.warn(subprocess.check_output(cmd.split()).rstrip('\n'))
+        try:
+            typekey = 'folder' if target[1] else 'file'
+            # Look for matching rules based on the type.
+            for rule in rules[typekey]:
+                if re.match(rule['match'], target[0]):
+                    log.info('Found a match: {0} with {1}, type {2}'
+                             .format(target[0], rule['match'], typekey))
+                    for cmd in rule['command']:
+                        cmd = cmd.format(target[0])
+                        log.warn(cmd)
+                        log.warn(subprocess.check_output(shlex.split(cmd))
+                                 .rstrip('\n'))
+        except:
+            log.exception('', exc_info=True)
 
 
 def save_storage_fle(file, processed):
