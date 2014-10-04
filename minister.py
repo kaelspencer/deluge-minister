@@ -42,10 +42,13 @@ log.addHandler(logging.StreamHandler(log_string))
 @click.option('-d', '--depth', default=0, help='How many directories to '
               'descend into. All files encountered will be added but only '
               'folders at provided depth. Default 0.')
+@click.option('--populate', is_flag=True, help='Populate the storage file '
+              'normally except the rules will be ignored.')
 @click.option('-v', '--verbose', count=True,
               help='Logging verbosity, -vv for very verbose.')
 def minister(target, rulefile, depth, storage_file, verbose, email_username,
-             email_password, email_server, email_port, email_recipient):
+             email_password, email_server, email_port, email_recipient,
+             populate):
     if verbose == 1:
         log.setLevel(logging.INFO)
     elif verbose != 0:
@@ -53,7 +56,7 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
 
     try:
         already_processed = load_storage_file(storage_file)
-        rules = load_rules(rulefile)
+        rules = load_rules(rulefile, populate)
         targets = iterate_input(target, depth, already_processed)
         process(targets, rules)
 
@@ -94,8 +97,17 @@ def should_be_included(path, at_depth, already_processed):
     return valid and path not in already_processed
 
 
-def load_rules(file):
+def load_rules(file, empty_rules):
     """Load the JSON rules file and explode the data."""
+    # Now validate that each rule has the required values.
+    processed_rules = {
+        'file': [],
+        'folder': []
+    }
+
+    if empty_rules:
+        return processed_rules
+
     log.info('Loading rule file: {0}'.format(file))
     f = open(file, 'r')
     rules = json.loads(''.join(f.readlines()))
@@ -114,12 +126,6 @@ def load_rules(file):
         if 'folder' not in rules:
             log.debug('Folder rules not found, adding empty ruleset.')
             rules['folder'] = []
-
-    # Now validate that each rule has the required values.
-    processed_rules = {
-        'file': [],
-        'folder': []
-    }
 
     def validate_rule(rule):
         valid = True
