@@ -83,7 +83,8 @@ def iterate_input(path, depth, already_processed):
                 result.append((abs_path, os.path.isdir(abs_path)))
 
             if depth > 0 and os.path.isdir(abs_path):
-                result.extend(iterate_input(abs_path, depth - 1))
+                result.extend(iterate_input(abs_path, depth - 1,
+                                            already_processed))
     return result
 
 
