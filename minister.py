@@ -180,6 +180,8 @@ def process(targets, rules):
         matched = False
         try:
             typekey = 'folder' if target[1] else 'file'
+            output = '\n'
+
             # Look for matching rules based on the type.
             for rule in rules[typekey]:
                 if re.match(rule['match'], target[0]):
@@ -187,14 +189,16 @@ def process(targets, rules):
                              .format(target[0], rule['match'], typekey))
                     for cmd in rule['command']:
                         cmd = cmd.format(target[0])
-                        log.warn(cmd)
-                        log.warn(subprocess.check_output(shlex.split(cmd))
-                                 .rstrip('\n'))
+                        output += '> ' + cmd + '\n'
+                        output += subprocess.check_output(shlex.split(cmd))
                     matched = True
         except:
+            matched = False
+            log.warn(output)
             log.exception('', exc_info=True)
 
         if matched:
+            log.warn(output)
             processed.append(target)
         else:
             unprocessed.append(target)
