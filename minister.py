@@ -58,10 +58,11 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
         already_processed = load_storage_file(storage_file)
         rules = load_rules(rulefile, populate)
         targets = iterate_input(target, depth, already_processed)
-        process(targets, rules)
+        processed, unprocessed = process(targets, rules)
 
         save_storage_fle(storage_file,
                          [x[0] for x in targets] + already_processed)
+        summarize(processed, unprocessed)
         send_log_email(email_recipient, log_string.getvalue(), email_server,
                        email_port, email_username, email_password)
     except:
@@ -172,7 +173,11 @@ def process(targets, rules):
     log.info('To process:\n{0}'.format(pformat(targets)))
     log.debug('Rules:\n{0}'.format(pformat(rules)))
 
+    processed = []
+    unprocessed = []
+
     for target in targets:
+        matched = False
         try:
             typekey = 'folder' if target[1] else 'file'
             # Look for matching rules based on the type.
@@ -185,8 +190,35 @@ def process(targets, rules):
                         log.warn(cmd)
                         log.warn(subprocess.check_output(shlex.split(cmd))
                                  .rstrip('\n'))
+                    matched = True
         except:
             log.exception('', exc_info=True)
+
+        if matched:
+            processed.append(target)
+        else:
+            unprocessed.append(target)
+
+    return processed, unprocessed
+
+
+def summarize(processed, unprocessed):
+    """Output a summary of processed and unprocessed targets."""
+    summary = 'Summary:\nProcessed:\n\t'
+
+    if len(processed):
+        summary += '\n\t'.join([x[0] for x in processed])
+    else:
+        summary += 'None'
+
+    summary += '\n\nUnmatched:\n\t'
+
+    if len(unprocessed):
+        summary += '\n\t'.join([x[0] for x in unprocessed])
+    else:
+        summary += 'None'
+
+    log.warn(summary)
 
 
 def save_storage_fle(file, processed):
