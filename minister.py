@@ -65,10 +65,10 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
 
         save_storage_fle(storage_file,
                          [x[0] for x in targets] + already_processed)
-        summarize(processed, unprocessed)
+        summary = summarize(processed, unprocessed)
 
         if email_always or len(processed) > 0 or len(unprocessed) > 0:
-            send_log_email(email_recipient, log_string.getvalue(),
+            send_log_email(summary, log_string.getvalue(), email_recipient,
                            email_server, email_port, email_username,
                            email_password)
     except:
@@ -229,6 +229,7 @@ def summarize(processed, unprocessed):
         summary += 'None'
 
     log.warn(summary)
+    return summary
 
 
 def save_storage_fle(file, processed):
@@ -262,7 +263,7 @@ def load_storage_file(file):
         return []
 
 
-def send_log_email(recipient, body, server, port, username, password):
+def send_log_email(summary, body, recipient, server, port, username, password):
     """Send the log statements over email.
 
     The SMTP information is provided and used to send the log statements to the
@@ -277,8 +278,8 @@ def send_log_email(recipient, body, server, port, username, password):
         return
 
     log.info('Start sending email.')
-    msg = MIMEText('<html><body><pre><code>{0}</code></pre></body></html>'
-                   .format(body), 'html')
+    fmt = '<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body></html>'
+    msg = MIMEText(fmt.format(summary, body), 'html')
     msg['Subject'] = 'deluge-minister log at {0}'.format(
         datetime.now().isoformat())
     msg['From'] = username
