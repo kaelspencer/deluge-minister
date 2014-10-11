@@ -39,6 +39,9 @@ log.addHandler(logging.StreamHandler(log_string))
               help='SMTP email server. Default: smtp.gmail.com')
 @click.option('--email-port', default=587,
               help='SMTP server port. Default: 587')
+@click.option('--email-always', is_flag=True, help='Normally email is only '
+              'sent when new files are detected. This flag causes an email to '
+              'be sent always.')
 @click.option('-d', '--depth', default=0, help='How many directories to '
               'descend into. All files encountered will be added but only '
               'folders at provided depth. Default 0.')
@@ -48,7 +51,7 @@ log.addHandler(logging.StreamHandler(log_string))
               help='Logging verbosity, -vv for very verbose.')
 def minister(target, rulefile, depth, storage_file, verbose, email_username,
              email_password, email_server, email_port, email_recipient,
-             populate):
+             populate, email_always):
     if verbose == 1:
         log.setLevel(logging.INFO)
     elif verbose != 0:
@@ -63,8 +66,11 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
         save_storage_fle(storage_file,
                          [x[0] for x in targets] + already_processed)
         summarize(processed, unprocessed)
-        send_log_email(email_recipient, log_string.getvalue(), email_server,
-                       email_port, email_username, email_password)
+
+        if email_always or len(processed) > 0 or len(unprocessed) > 0:
+            send_log_email(email_recipient, log_string.getvalue(),
+                           email_server, email_port, email_username,
+                           email_password)
     except:
         log.exception('', exc_info=True)
 
