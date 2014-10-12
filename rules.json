@@ -1,19 +1,10 @@
 {
     "file": [{
-        "match": "(.*)minister.py$",
-        "command": "ls -lh {0}"
+        "match": "(.*)S[0-9]{2}E[0-9]{2}(.*)(mkv|mp4|avi)$",
+        "command": "echo {0}"
     },{
-        "match": "(.*)\\.md$",
-        "command": ["ls -lh {0}", "echo {0}", "ls -lhd \"foo bar\""]
-    },{
-        "match": 0,
-        "command": "bad match"
-    },{
-        "match": "bad command",
-        "command": 0
+        "match": "(.*)[0-9]{4}(-|\\.)[0-9]{2}(-|\\.)[0-9]{2}(.*)(mkv|mp4|avi)$",
+        "command": "echo {0}"
     }],
-    "folder": [{
-        "match": "(.*)\\.git$",
-        "command": "ls -lhd {0}"
-    }]
+    "folder": []
 }
