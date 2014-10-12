@@ -101,7 +101,7 @@ def iterate_input(path, depth, already_processed):
 def should_be_included(path, at_depth, already_processed):
     """Determines if the path item should be processed."""
     valid = at_depth or not os.path.isdir(path)
-    return valid and path not in already_processed
+    return valid and path.decode('utf-8') not in already_processed
 
 
 def load_rules(file, empty_rules):
