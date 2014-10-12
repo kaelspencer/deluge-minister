@@ -117,8 +117,13 @@ def load_rules(file, empty_rules):
 
     log.info('Loading rule file: {0}'.format(file))
     f = open(file, 'r')
-    rules = json.loads(''.join(f.readlines()))
+    full = json.loads(''.join(f.readlines()))
     f.close()
+
+    if 'rules' not in full:
+        raise Exception('No rules found in rules file. Looking for top level '
+                        '"rules".')
+    rules = full['rules']
 
     # process assumes that both 'file' and 'folder' rules exist under rules.
     # Ensure they do. If neither exist, throw an error. Something needs to be
