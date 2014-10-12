@@ -104,16 +104,45 @@ def should_be_included(path, at_depth, already_processed):
     return valid and path.decode('utf-8') not in already_processed
 
 
+def validate_rule(rule):
+    """Determine if a rule is valid."""
+    valid = True
+
+    if 'command' in rule and type(rule['command']) is unicode:
+        # The rules file has a string for a command. Normalize it into an
+        # array.
+        rule['command'] = [rule['command']]
+    elif ('command' in rule and type(rule['command']) is list and
+            len(rule['command']) > 0):
+        # The rules file has an array. Ensure all elements are strings.
+        for cmd in rule['command']:
+            if type(cmd) is not unicode:
+                valid = False
+                break
+    else:
+        valid = False
+
+    if 'match' not in rule or type(rule['match']) is not unicode:
+        valid = False
+
+    if not valid:
+        log.info('Ignoring malformed rule: {0}'.format(rule))
+
+    return valid
+
+
 def load_rules(file, empty_rules):
     """Load the JSON rules file and explode the data."""
     # Now validate that each rule has the required values.
-    processed_rules = {
-        'file': [],
-        'folder': []
+    processed = {
+        'rules': {
+            'file': [],
+            'folder': []
+        }
     }
 
     if empty_rules:
-        return processed_rules
+        return processed
 
     log.info('Loading rule file: {0}'.format(file))
     f = open(file, 'r')
@@ -139,40 +168,10 @@ def load_rules(file, empty_rules):
             log.debug('Folder rules not found, adding empty ruleset.')
             rules['folder'] = []
 
-    def validate_rule(rule):
-        valid = True
+    processed['rules']['file'] = filter(validate_rule, rules['file'])
+    processed['rules']['folder'] = filter(validate_rule, rules['folder'])
 
-        if 'command' in rule and type(rule['command']) is unicode:
-            # The rules file has a string for a command. Normalize it into an
-            # array.
-            rule['command'] = [rule['command']]
-        elif ('command' in rule and type(rule['command']) is list and
-                len(rule['command']) > 0):
-            # The rules file has an array. Ensure all elements are strings.
-            for cmd in rule['command']:
-                if type(cmd) is not unicode:
-                    valid = False
-                    break
-        else:
-            valid = False
-
-        if 'match' not in rule or type(rule['match']) is not unicode:
-            valid = False
-
-        if not valid:
-            log.info('Ignoring malformed rule: {0}'.format(rule))
-
-        return valid
-
-    for rule in rules['file']:
-        if validate_rule(rule):
-            processed_rules['file'].append(rule)
-
-    for rule in rules['folder']:
-        if validate_rule(rule):
-            processed_rules['folder'].append(rule)
-
-    return processed_rules
+    return processed
 
 
 def process(targets, rules):
@@ -194,7 +193,7 @@ def process(targets, rules):
             output = '\n'
 
             # Look for matching rules based on the type.
-            for rule in rules[typekey]:
+            for rule in rules['rules'][typekey]:
                 if re.match(rule['match'], target[0]):
                     log.info('Found a match: {0} with {1}, type {2}'
                              .format(target[0], rule['match'], typekey))
