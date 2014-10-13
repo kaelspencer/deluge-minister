@@ -2,10 +2,10 @@
     "rules": {
         "file": [{
             "match": "(.*)S[0-9]{2}E[0-9]{2}(.*)(mkv|mp4|avi)$",
-            "command": "echo {0}"
+            "command": "echo {file}"
         },{
             "match": "(.*)[0-9]{4}(-|\\.)[0-9]{2}(-|\\.)[0-9]{2}(.*)(mkv|mp4|avi)$",
-            "command": "echo {0}"
+            "command": "echo {path}"
         }],
         "folder": []
     },
@@ -15,7 +15,7 @@
             "(.*)r[0-9]{2}$"
         ],
         "folder": [
-            "(.*)WhatSeeds$"
+            "(.*)Sample$"
         ]
     }
 }

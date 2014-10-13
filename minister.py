@@ -148,7 +148,6 @@ def validate_rule(rule):
 
     return valid
 
-
 def load_rules(file, empty_rules):
     """Load the JSON rules file and explode the data."""
     # Now validate that each rule has the required values.
@@ -212,6 +211,14 @@ def process(targets, rules):
     processed = []
     unprocessed = []
 
+    def format_cmd(cmd, target):
+        """Format the command depending on the target type."""
+        # If it is a directory.
+        if target[1]:
+            return cmd.format(path=target[0])
+        else:
+            return cmd.format(path=target[0], file=os.path.basename(target[0]))
+
     for target in targets:
         matched = False
         try:
@@ -224,7 +231,7 @@ def process(targets, rules):
                     log.info('Found a match: {0} with {1}, type {2}'
                              .format(target[0], rule['match'], typekey))
                     for cmd in rule['command']:
-                        cmd = cmd.format(target[0])
+                        cmd = format_cmd(cmd, target)
                         output += '> ' + cmd + '\n'
                         output += subprocess.check_output(shlex.split(cmd))
                     matched = True
@@ -319,7 +326,7 @@ def send_log_email(summary, body, recipient, server, port, username, password):
         s = smtplib.SMTP(server, port)
         s.ehlo()
         s.starttls()
-        s.ehlo
+        s.ehlo()
         s.login(username, password)
         s.sendmail(username, [recipient], msg.as_string())
         s.close()
