@@ -235,6 +235,7 @@ def process(targets, rules):
                         output += '> ' + cmd + '\n'
                         output += subprocess.check_output(shlex.split(cmd))
                     matched = True
+                    break
         except:
             matched = False
             log.warn(output)
