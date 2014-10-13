@@ -8,5 +8,14 @@
             "command": "echo {0}"
         }],
         "folder": []
+    },
+    "ignore": {
+        "file": [
+            "(.*)nfo$",
+            "(.*)srt$"
+        ],
+        "folder": [
+            "(.*)WhatSeeds$"
+        ]
     }
 }

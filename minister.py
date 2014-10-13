@@ -60,7 +60,8 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
     try:
         already_processed = load_storage_file(storage_file)
         rules = load_rules(rulefile, populate)
-        targets = iterate_input(target, depth, already_processed)
+        targets = iterate_input(target, depth, already_processed,
+                                rules['ignore'])
         processed, unprocessed = process(targets, rules)
 
         save_storage_fle(storage_file,
@@ -76,8 +77,7 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
 
     log_string.close()
 
-
-def iterate_input(path, depth, already_processed):
+def iterate_input(path, depth, already_processed, ignore):
     """Recursively iterate through the path looking for items to process.
 
     Recursively descend through the path. All symbolic links are ignored. All
@@ -86,23 +86,41 @@ def iterate_input(path, depth, already_processed):
     """
     result = []
 
-    for dir in os.listdir(path):
-        if not os.path.islink(dir):
-            abs_path = '%s/%s' % (path, dir)
-            if should_be_included(abs_path, depth == 0, already_processed):
-                result.append((abs_path, os.path.isdir(abs_path)))
+    for subdir in os.listdir(path):
+        if os.path.islink(subdir):
+            continue
 
-            if depth > 0 and os.path.isdir(abs_path):
-                result.extend(iterate_input(abs_path, depth - 1,
-                                            already_processed))
+        abs_path = '%s/%s' % (path, subdir)
+        isdir = os.path.isdir(abs_path)
+
+        if should_be_included(abs_path, depth == 0, already_processed,
+                              ignore):
+            result.append((abs_path, isdir))
+
+
+        if depth > 0 and isdir and not should_ignore(abs_path, isdir, ignore):
+            result.extend(iterate_input(abs_path, depth - 1, already_processed,
+                                        ignore))
     return result
 
 
-def should_be_included(path, at_depth, already_processed):
+def should_be_included(path, at_depth, already_processed, ignore):
     """Determines if the path item should be processed."""
-    valid = at_depth or not os.path.isdir(path)
-    return valid and path.decode('utf-8') not in already_processed
+    isdir = os.path.isdir(path)
+    return (at_depth or not isdir) \
+        and path.decode('utf-8') not in already_processed \
+        and not should_ignore(path, isdir, ignore)
 
+
+def should_ignore(path, isdir, ignore):
+    """Determines if the path should be ignored."""
+    typekey = 'folder' if isdir else 'file'
+    for ign in ignore[typekey]:
+        if re.match(ign, path):
+            log.debug('Ignoring {0}, matched ignore rule {1}'
+                      .format(path, ign))
+            return True
+    return False
 
 def validate_rule(rule):
     """Determine if a rule is valid."""
@@ -134,15 +152,13 @@ def validate_rule(rule):
 def load_rules(file, empty_rules):
     """Load the JSON rules file and explode the data."""
     # Now validate that each rule has the required values.
-    processed = {
-        'rules': {
-            'file': [],
-            'folder': []
-        }
+    result = {
+        'rules': {'file': [], 'folder': [] },
+        'ignore': {'file': [], 'folder': [] }
     }
 
     if empty_rules:
-        return processed
+        return result
 
     log.info('Loading rule file: {0}'.format(file))
     f = open(file, 'r')
@@ -161,17 +177,27 @@ def load_rules(file, empty_rules):
         raise Exception('No rules found in rules file. Looking for "file" '
                         'and/or "folder".')
     else:
-        if 'file' not in rules:
-            log.debug('File rules not found, adding empty ruleset.')
-            rules['file'] = []
-        if 'folder' not in rules:
-            log.debug('Folder rules not found, adding empty ruleset.')
-            rules['folder'] = []
+        for typekey in ['file', 'folder']:
+            if typekey not in rules:
+                log.debug('{0} rules not found, adding empty ruleset.'
+                    .format(typekey))
+                rules[typekey] = []
 
-    processed['rules']['file'] = filter(validate_rule, rules['file'])
-    processed['rules']['folder'] = filter(validate_rule, rules['folder'])
+    # No need to ensure any ignore list exists, it's optional.
+    ignore = full['ignore'] if 'ignore' in full else {}
+    for typekey in ['file', 'folder']:
+        if typekey not in ignore:
+            ignore[typekey] = []
 
-    return processed
+    def validate_ignore(ignore):
+        return type(ignore) == unicode and len(ignore) > 0
+
+    result['rules']['file'] = filter(validate_rule, rules['file'])
+    result['rules']['folder'] = filter(validate_rule, rules['folder'])
+    result['ignore']['file'] = filter(validate_ignore, ignore['file'])
+    result['ignore']['folder'] = filter(validate_ignore, ignore['folder'])
+
+    return result
 
 
 def process(targets, rules):
