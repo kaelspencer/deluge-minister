@@ -233,7 +233,7 @@ def process(targets, rules):
                     for cmd in rule['command']:
                         cmd = format_cmd(cmd, target)
                         output += '> ' + cmd + '\n'
-                        output += subprocess.check_output(shlex.split(cmd))
+                        output += subprocess.check_output(shlex.split(cmd)).decode('utf-8')
                     matched = True
                     break
         except:
