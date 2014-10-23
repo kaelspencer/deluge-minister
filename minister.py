@@ -317,7 +317,7 @@ def send_log_email(summary, body, recipient, server, port, username, password):
 
     log.info('Start sending email.')
     fmt = '<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body></html>'
-    msg = MIMEText(fmt.format(summary, body), 'html')
+    msg = MIMEText(fmt.format(summary, body.encode('utf-8')), 'html')
     msg['Subject'] = 'deluge-minister log at {0}'.format(
         datetime.now().isoformat())
     msg['From'] = username
