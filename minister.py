@@ -52,6 +52,7 @@ log.addHandler(logging.StreamHandler(log_string))
 def minister(target, rulefile, depth, storage_file, verbose, email_username,
              email_password, email_server, email_port, email_recipient,
              populate, email_always):
+    """Kick off the minister work."""
     if verbose == 1:
         log.setLevel(logging.INFO)
     elif verbose != 0:
@@ -131,7 +132,7 @@ def validate_rule(rule):
         # array.
         rule['command'] = [rule['command']]
     elif ('command' in rule and type(rule['command']) is list and
-            len(rule['command']) > 0):
+          len(rule['command']) > 0):
         # The rules file has an array. Ensure all elements are strings.
         for cmd in rule['command']:
             if type(cmd) is not unicode:
@@ -148,21 +149,21 @@ def validate_rule(rule):
 
     return valid
 
-def load_rules(file, empty_rules):
+def load_rules(filepath, empty_rules):
     """Load the JSON rules file and explode the data."""
     # Now validate that each rule has the required values.
     result = {
-        'rules': {'file': [], 'folder': [] },
-        'ignore': {'file': [], 'folder': [] }
+        'rules': {'file': [], 'folder': []},
+        'ignore': {'file': [], 'folder': []}
     }
 
     if empty_rules:
         return result
 
-    log.info('Loading rule file: {0}'.format(file))
-    f = open(file, 'r')
-    full = json.loads(''.join(f.readlines()))
-    f.close()
+    log.info('Loading rule file: {0}'.format(filepath))
+    rulefile = open(filepath, 'r')
+    full = json.loads(''.join(rulefile.readlines()))
+    rulefile.close()
 
     if 'rules' not in full:
         raise Exception('No rules found in rules file. Looking for top level '
@@ -179,7 +180,7 @@ def load_rules(file, empty_rules):
         for typekey in ['file', 'folder']:
             if typekey not in rules:
                 log.debug('{0} rules not found, adding empty ruleset.'
-                    .format(typekey))
+                          .format(typekey))
                 rules[typekey] = []
 
     # No need to ensure any ignore list exists, it's optional.
@@ -189,6 +190,7 @@ def load_rules(file, empty_rules):
             ignore[typekey] = []
 
     def validate_ignore(ignore):
+        """Returns false for empty or non-strings."""
         return type(ignore) == unicode and len(ignore) > 0
 
     result['rules']['file'] = filter(validate_rule, rules['file'])
@@ -270,18 +272,18 @@ def summarize(processed, unprocessed):
     return summary
 
 
-def save_storage_fle(file, processed):
+def save_storage_fle(filepath, processed):
     """Output the processed list to a file."""
-    log.info('Write processed list: {0}'.format(file))
+    log.info('Write processed list: {0}'.format(filepath))
     log.debug('Value:\n{0}'.format(pformat(processed)))
-    f = open(file, 'w')
-    f.write(json.dumps(processed, sort_keys=True, indent=4,
-                       separators=(',', ': ')))
-    f.write('\n')
-    f.close()
+    storagefile = open(filepath, 'w')
+    storagefile.write(json.dumps(processed, sort_keys=True, indent=4,
+                                 separators=(',', ': ')))
+    storagefile.write('\n')
+    storagefile.close()
 
 
-def load_storage_file(file):
+def load_storage_file(filepath):
     """Attempt to load the saved processed list.
 
     Load the saved file, parse the json, and return the list. If the file
@@ -289,12 +291,12 @@ def load_storage_file(file):
     empty list.
     """
     try:
-        log.info('Loading previously processed file: {0}'.format(file))
-        f = open(file, 'r')
-        lines = f.readlines()
+        log.info('Loading previously processed file: {0}'.format(filepath))
+        storagefile = open(filepath, 'r')
+        lines = storagefile.readlines()
         lines = json.loads(''.join(lines))
         log.debug('Value:\n{0}'.format(pformat(lines)))
-        f.close()
+        storagefile.close()
         return lines
     except:
         log.debug('Anticipated error loading processed file.', exc_info=True)
@@ -324,13 +326,13 @@ def send_log_email(summary, body, recipient, server, port, username, password):
     msg['To'] = recipient
 
     try:
-        s = smtplib.SMTP(server, port)
-        s.ehlo()
-        s.starttls()
-        s.ehlo()
-        s.login(username, password)
-        s.sendmail(username, [recipient], msg.as_string())
-        s.close()
+        smtp = smtplib.SMTP(server, port)
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.ehlo()
+        smtp.login(username, password)
+        smtp.sendmail(username, [recipient], msg.as_string())
+        smtp.close()
         log.info('Finished sending email.')
     except smtplib.SMTPException:
         log.exception('Failed to send log email.', exc_info=True)
