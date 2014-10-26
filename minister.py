@@ -47,11 +47,13 @@ log.addHandler(logging.StreamHandler(log_string))
               'folders at provided depth. Default 0.')
 @click.option('--populate', is_flag=True, help='Populate the storage file '
               'normally except the rules will be ignored.')
+@click.option('--case-insensitive', is_flag=True, help='Regular expressions '
+              'are case insensitive.')
 @click.option('-v', '--verbose', count=True,
               help='Logging verbosity, -vv for very verbose.')
 def minister(target, rulefile, depth, storage_file, verbose, email_username,
              email_password, email_server, email_port, email_recipient,
-             populate, email_always):
+             populate, email_always, case_insensitive):
     """Kick off the minister work."""
     if verbose == 1:
         log.setLevel(logging.INFO)
@@ -63,7 +65,7 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
         rules = load_rules(rulefile, populate)
         targets = iterate_input(target, depth, already_processed,
                                 rules['ignore'])
-        processed, unprocessed = process(targets, rules)
+        processed, unprocessed = process(targets, rules, case_insensitive)
 
         save_storage_fle(storage_file,
                          [x[0] for x in targets] + already_processed)
@@ -201,7 +203,7 @@ def load_rules(filepath, empty_rules):
     return result
 
 
-def process(targets, rules):
+def process(targets, rules, case_insensitive):
     """Process targets using the rules.
 
     Iterate through the targets looking for rule matches. There should be a set
@@ -212,6 +214,7 @@ def process(targets, rules):
 
     processed = []
     unprocessed = []
+    flags = re.IGNORECASE if case_insensitive else 0
 
     def format_cmd(cmd, target):
         """Format the command depending on the target type."""
@@ -229,7 +232,7 @@ def process(targets, rules):
 
             # Look for matching rules based on the type.
             for rule in rules['rules'][typekey]:
-                if re.match(rule['match'], target[0]):
+                if re.match(rule['match'], target[0], flags):
                     log.info('Found a match: {0} with {1}, type {2}'
                              .format(target[0], rule['match'], typekey))
                     for cmd in rule['command']:
