@@ -96,10 +96,8 @@ def iterate_input(path, depth, already_processed, ignore):
         abs_path = '%s/%s' % (path, subdir)
         isdir = os.path.isdir(abs_path)
 
-        if should_be_included(abs_path, depth == 0, already_processed,
-                              ignore):
+        if should_be_included(abs_path, depth == 0, already_processed, ignore):
             result.append((abs_path, isdir))
-
 
         if depth > 0 and isdir and not should_ignore(abs_path, isdir, ignore):
             result.extend(iterate_input(abs_path, depth - 1, already_processed,
@@ -218,11 +216,14 @@ def process(targets, rules, case_insensitive):
 
     def format_cmd(cmd, target):
         """Format the command depending on the target type."""
+        path = '"{0}"'.format(target[0])
+
         # If it is a directory.
         if target[1]:
-            return cmd.format(path=target[0])
+            return cmd.format(path=path)
         else:
-            return cmd.format(path=target[0], file=os.path.basename(target[0]))
+            filepath = '"{0}"'.format(os.path.basename(target[0]))
+            return cmd.format(path=path, file=filepath)
 
     for target in targets:
         matched = False
