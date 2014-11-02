@@ -1,4 +1,6 @@
 #!/usr/bin/python
+"""Deluge Minister monitors a folder and runs command on new items."""
+
 from datetime import datetime
 from email.mime.text import MIMEText
 from pprint import pformat
@@ -19,6 +21,58 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 log_string = StringIO.StringIO()
 log.addHandler(logging.StreamHandler(log_string))
+
+
+class LogEmailer(object):
+    """A class to email the log file."""
+    def __init__(self, username, password, server, port):
+        self.username = username
+        self.password = password
+        self.server = server
+        self.port = port
+
+
+    def send(self, recipient, summary, body):
+        """Send the log statements over email.
+
+        The SMTP information is provided and used to send the log statements to
+        the recipient. Server, username, password, and recipient must be set.
+        If only some of them are set a warning is printed out.
+        """
+        if not self.valid(recipient):
+            return
+
+        log.info('Start sending email.')
+        fmt = '<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body>' \
+              '</html>'
+        msg = MIMEText(fmt.format(summary, body.encode('utf-8')), 'html')
+        msg['Subject'] = 'deluge-minister log at {0}'.format(
+            datetime.now().isoformat())
+        msg['From'] = self.username
+        msg['To'] = recipient
+
+        try:
+            smtp = smtplib.SMTP(self.server, self.port)
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
+            smtp.login(self.username, self.password)
+            smtp.sendmail(self.username, [recipient], msg.as_string())
+            smtp.close()
+            log.info('Finished sending email.')
+        except smtplib.SMTPException:
+            log.exception('Failed to send log email.', exc_info=True)
+
+    def valid(self, recipient):
+        """Determines if the class has the proper values to send an email."""
+        if not self.server or not self.username or not self.password or \
+            not recipient:
+            if self.username or self.password or recipient:
+                # Nothing being supplied means don't send the email. A subset
+                # being supplied is an error case.
+                log.error('Not sending email. Missing parameters.')
+            return False
+        return True
 
 
 @click.command()
@@ -72,9 +126,9 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username,
         summary = summarize(processed, unprocessed)
 
         if email_always or len(processed) > 0 or len(unprocessed) > 0:
-            send_log_email(summary, log_string.getvalue(), email_recipient,
-                           email_server, email_port, email_username,
-                           email_password)
+            mailer = LogEmailer(email_username, email_password, email_server,
+                                email_port)
+            mailer.send(email_recipient, summary, log_string.getvalue())
     except:
         log.exception('', exc_info=True)
 
@@ -305,41 +359,6 @@ def load_storage_file(filepath):
     except:
         log.debug('Anticipated error loading processed file.', exc_info=True)
         return []
-
-
-def send_log_email(summary, body, recipient, server, port, username, password):
-    """Send the log statements over email.
-
-    The SMTP information is provided and used to send the log statements to the
-    recipient. Server, username, password, and recipient must be set. If only
-    some of them are set a warning is printed out.
-    """
-    if not server or not username or not password or not recipient:
-        if username or password or recipient:
-            # Username, password, and the recipient address must be supplied by
-            # the user. If they supplied one and not the other print a message.
-            log.error('Not sending email. Missing parameters.')
-        return
-
-    log.info('Start sending email.')
-    fmt = '<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body></html>'
-    msg = MIMEText(fmt.format(summary, body.encode('utf-8')), 'html')
-    msg['Subject'] = 'deluge-minister log at {0}'.format(
-        datetime.now().isoformat())
-    msg['From'] = username
-    msg['To'] = recipient
-
-    try:
-        smtp = smtplib.SMTP(server, port)
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.ehlo()
-        smtp.login(username, password)
-        smtp.sendmail(username, [recipient], msg.as_string())
-        smtp.close()
-        log.info('Finished sending email.')
-    except smtplib.SMTPException:
-        log.exception('Failed to send log email.', exc_info=True)
 
 if __name__ == '__main__':
     minister()
