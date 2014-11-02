@@ -206,13 +206,12 @@ def validate_rule(rule):
 def load_rules(filepath, empty_rules):
     """Load the JSON rules file and explode the data."""
     # Now validate that each rule has the required values.
-    result = {
-        'rules': {'file': [], 'folder': []},
-        'ignore': {'file': [], 'folder': []}
-    }
 
     if empty_rules:
-        return result
+        return {
+            'rules': {'file': [], 'folder': []},
+            'ignore': {'file': [], 'folder': []}
+        }
 
     log.info('Loading rule file: {0}'.format(filepath))
     rulefile = open(filepath, 'r')
@@ -247,12 +246,14 @@ def load_rules(filepath, empty_rules):
         """Returns false for empty or non-strings."""
         return type(ignore) == unicode and len(ignore) > 0
 
-    result['rules']['file'] = filter(validate_rule, rules['file'])
-    result['rules']['folder'] = filter(validate_rule, rules['folder'])
-    result['ignore']['file'] = filter(validate_ignore, ignore['file'])
-    result['ignore']['folder'] = filter(validate_ignore, ignore['folder'])
-
-    return result
+    rfi = [x for x in rules['file'] if validate_rule(x)]
+    rfo = [x for x in rules['folder'] if validate_rule(x)]
+    ifi = [x for x in ignore['file'] if validate_ignore(x)]
+    ifo = [x for x in ignore['folder'] if validate_ignore(x)]
+    return {
+        'rules': {'file': rfi, 'folder': rfo},
+        'ignore': {'file': ifi, 'folder': ifo}
+    }
 
 
 def process(targets, rules, case_insensitive):
@@ -293,10 +294,17 @@ def process(targets, rules, case_insensitive):
                     for cmd in rule['command']:
                         cmd = format_cmd(cmd, target)
                         output += '> ' + cmd + '\n'
-                        output += subprocess.check_output(shlex.split(cmd)).decode('utf-8')
+                        out_unicode = subprocess.check_output(shlex.split(cmd))
+                        output += out_unicode.decode('utf-8')
                     matched = True
                     break
-        except:
+        except subprocess.CalledProcessError as err:
+            matched = False
+            log.warn('Command failed.\nCommand: {0}\nOutput: {1}'
+                     .format(err.cmd, err.output))
+            log.warn(output)
+            log.exception('', exc_info=True)
+        except (OSError, UnicodeDecodeError):
             matched = False
             log.warn(output)
             log.exception('', exc_info=True)
@@ -356,7 +364,7 @@ def load_storage_file(filepath):
         log.debug('Value:\n{0}'.format(pformat(lines)))
         storagefile.close()
         return lines
-    except:
+    except IOError:
         log.debug('Anticipated error loading processed file.', exc_info=True)
         return []
 
