@@ -23,6 +23,54 @@ log_string = StringIO.StringIO()
 log.addHandler(logging.StreamHandler(log_string))
 
 
+@click.command()
+@click.argument('target', type=click.Path(exists=True, file_okay=False,
+                                          resolve_path=True))
+@click.argument('rulefile', type=click.Path(exists=True, file_okay=True,
+                                            resolve_path=True))
+@click.option('-s', '--storage-file', default='minister-storage.json',
+              help='The file location to store processed files so duplication '
+              'doesn\'t happen in the future.')
+@click.option('--email-recipient', help='Recipient\'s email address. Requires '
+              'username and password options.')
+@click.option('--email-username', help='Sender\'s email address. Requires '
+              'password and recipient options.')
+@click.option('--email-password', help='Sender\'s email password. Requires '
+              'username and recipient options.')
+@click.option('--email-server', default='smtp.gmail.com',
+              help='SMTP email server. Default: smtp.gmail.com')
+@click.option('--email-port', default=587,
+              help='SMTP server port. Default: 587')
+@click.option('--email-always', is_flag=True, help='Normally email is only '
+              'sent when new files are detected. This flag causes an email to '
+              'be sent always.')
+@click.option('-d', '--depth', default=0, help='How many directories to '
+              'descend into. All files encountered will be added but only '
+              'folders at provided depth. Default 0.')
+@click.option('--populate', is_flag=True, help='Populate the storage file '
+              'normally except the rules will be ignored.')
+@click.option('--case-insensitive', is_flag=True, help='Regular expressions '
+              'are case insensitive.')
+@click.option('-v', '--verbose', count=True,
+              help='Logging verbosity, -vv for very verbose.')
+def minister(target, rulefile, depth, storage_file, verbose, email_username,
+             email_password, email_server, email_port, email_recipient,
+             populate, email_always, case_insensitive):
+    """Kick off the minister work."""
+    if verbose == 1:
+        log.setLevel(logging.INFO)
+    elif verbose != 0:
+        log.setLevel(logging.DEBUG)
+
+    mailer = LogEmailer(email_username, email_password, email_server,
+                        email_port)
+    minstr = Minister(depth, populate, case_insensitive)
+    minstr.run(target, rulefile, storage_file)
+    minstr.sendmail(mailer, email_recipient, email_always)
+
+    log_string.close()
+
+
 class LogEmailer(object):
     """A class to email the log file."""
     def __init__(self, username, password, server, port):
@@ -75,298 +123,281 @@ class LogEmailer(object):
         return True
 
 
-@click.command()
-@click.argument('target', type=click.Path(exists=True, file_okay=False,
-                                          resolve_path=True))
-@click.argument('rulefile', type=click.Path(exists=True, file_okay=True,
-                                            resolve_path=True))
-@click.option('-s', '--storage-file', default='minister-storage.json',
-              help='The file location to store processed files so duplication '
-              'doesn\'t happen in the future.')
-@click.option('--email-recipient', help='Recipient\'s email address. Requires '
-              'username and password options.')
-@click.option('--email-username', help='Sender\'s email address. Requires '
-              'password and recipient options.')
-@click.option('--email-password', help='Sender\'s email password. Requires '
-              'username and recipient options.')
-@click.option('--email-server', default='smtp.gmail.com',
-              help='SMTP email server. Default: smtp.gmail.com')
-@click.option('--email-port', default=587,
-              help='SMTP server port. Default: 587')
-@click.option('--email-always', is_flag=True, help='Normally email is only '
-              'sent when new files are detected. This flag causes an email to '
-              'be sent always.')
-@click.option('-d', '--depth', default=0, help='How many directories to '
-              'descend into. All files encountered will be added but only '
-              'folders at provided depth. Default 0.')
-@click.option('--populate', is_flag=True, help='Populate the storage file '
-              'normally except the rules will be ignored.')
-@click.option('--case-insensitive', is_flag=True, help='Regular expressions '
-              'are case insensitive.')
-@click.option('-v', '--verbose', count=True,
-              help='Logging verbosity, -vv for very verbose.')
-def minister(target, rulefile, depth, storage_file, verbose, email_username,
-             email_password, email_server, email_port, email_recipient,
-             populate, email_always, case_insensitive):
-    """Kick off the minister work."""
-    if verbose == 1:
-        log.setLevel(logging.INFO)
-    elif verbose != 0:
-        log.setLevel(logging.DEBUG)
+class Minister(object):
+    """The minister object."""
+    def __init__(self, depth, populate, case_insensitive):
+        self.depth = depth
+        self.populate = populate
+        self.case_insensitive = case_insensitive
 
-    try:
-        already_processed = load_storage_file(storage_file)
-        rules = load_rules(rulefile, populate)
-        targets = iterate_input(target, depth, already_processed,
-                                rules['ignore'])
-        processed, unprocessed = process(targets, rules, case_insensitive)
-
-        save_storage_fle(storage_file,
-                         [x[0] for x in targets] + already_processed)
-        summary = summarize(processed, unprocessed)
-
-        if email_always or len(processed) > 0 or len(unprocessed) > 0:
-            mailer = LogEmailer(email_username, email_password, email_server,
-                                email_port)
-            mailer.send(email_recipient, summary, log_string.getvalue())
-    except:
-        log.exception('', exc_info=True)
-
-    log_string.close()
-
-def iterate_input(path, depth, already_processed, ignore):
-    """Recursively iterate through the path looking for items to process.
-
-    Recursively descend through the path. All symbolic links are ignored. All
-    non-folder items are considered. Only folder items at the depth are
-    considered.
-    """
-    result = []
-
-    for subdir in os.listdir(path):
-        if os.path.islink(subdir):
-            continue
-
-        abs_path = '%s/%s' % (path, subdir)
-        isdir = os.path.isdir(abs_path)
-
-        if should_be_included(abs_path, depth == 0, already_processed, ignore):
-            result.append((abs_path, isdir))
-
-        if depth > 0 and isdir and not should_ignore(abs_path, isdir, ignore):
-            result.extend(iterate_input(abs_path, depth - 1, already_processed,
-                                        ignore))
-    return result
+        self.processed = []
+        self.unprocessed = []
 
 
-def should_be_included(path, at_depth, already_processed, ignore):
-    """Determines if the path item should be processed."""
-    isdir = os.path.isdir(path)
-    return (at_depth or not isdir) \
-        and path.decode('utf-8') not in already_processed \
-        and not should_ignore(path, isdir, ignore)
+    def run(self, target, rulefile, storage):
+        """Start the minister work."""
+        try:
+            already_processed = self.load_storage_file(storage)
+            rules = self.load_rules(rulefile, self.populate)
+            targets = self.iterate_input(target, self.depth, already_processed,
+                                         rules['ignore'])
+            self.processed, self.unprocessed = self.process(targets, rules,
+                                                  self.case_insensitive)
+
+            self.save_storage_fle(storage,
+                                  [x[0] for x in targets] + already_processed)
+        except:
+            log.exception('', exc_info=True)
 
 
-def should_ignore(path, isdir, ignore):
-    """Determines if the path should be ignored."""
-    typekey = 'folder' if isdir else 'file'
-    for ign in ignore[typekey]:
-        if re.match(ign, path):
-            log.debug('Ignoring {0}, matched ignore rule {1}'
-                      .format(path, ign))
-            return True
-    return False
+    def sendmail(self, mailer, recipient, always):
+        """Send the log mail.
 
-def validate_rule(rule):
-    """Determine if a rule is valid."""
-    valid = True
+        The LogMailer object is provided. always causes minister to always send
+        a status mail even if nothing was processed.
+        """
+        summary = self.summarize(self.processed, self.unprocessed)
+        if always or len(self.processed) > 0 or len(self.unprocessed) > 0:
+            mailer.send(recipient, summary, log_string.getvalue())
 
-    if 'command' in rule and type(rule['command']) is unicode:
-        # The rules file has a string for a command. Normalize it into an
-        # array.
-        rule['command'] = [rule['command']]
-    elif ('command' in rule and type(rule['command']) is list and
-          len(rule['command']) > 0):
-        # The rules file has an array. Ensure all elements are strings.
-        for cmd in rule['command']:
-            if type(cmd) is not unicode:
-                valid = False
-                break
-    else:
-        valid = False
 
-    if 'match' not in rule or type(rule['match']) is not unicode:
-        valid = False
+    def iterate_input(self, path, depth, already_processed, ignore):
+        """Recursively iterate through the path looking for items to process.
 
-    if not valid:
-        log.info('Ignoring malformed rule: {0}'.format(rule))
+        Recursively descend through the path. All symbolic links are ignored.
+        All non-folder items are considered. Only folder items at the depth are
+        considered.
+        """
+        result = []
 
-    return valid
+        for subdir in os.listdir(path):
+            if os.path.islink(subdir):
+                continue
 
-def load_rules(filepath, empty_rules):
-    """Load the JSON rules file and explode the data."""
-    # Now validate that each rule has the required values.
+            abs_path = '%s/%s' % (path, subdir)
+            isdir = os.path.isdir(abs_path)
 
-    if empty_rules:
+            if self.should_be_included(abs_path, depth == 0, already_processed,
+                                       ignore):
+                result.append((abs_path, isdir))
+
+            if depth > 0 and isdir and not self.should_ignore(abs_path, isdir,
+                                                              ignore):
+                result.extend(self.iterate_input(abs_path, depth - 1,
+                                                 already_processed, ignore))
+        return result
+
+
+    def should_be_included(self, path, at_depth, already_processed, ignore):
+        """Determines if the path item should be processed."""
+        isdir = os.path.isdir(path)
+        return (at_depth or not isdir) \
+            and path.decode('utf-8') not in already_processed \
+            and not self.should_ignore(path, isdir, ignore)
+
+
+    def should_ignore(self, path, isdir, ignore):
+        """Determines if the path should be ignored."""
+        typekey = 'folder' if isdir else 'file'
+        for ign in ignore[typekey]:
+            if re.match(ign, path):
+                log.debug('Ignoring {0}, matched ignore rule {1}'
+                          .format(path, ign))
+                return True
+        return False
+
+
+    def validate_rule(self, rule):
+        """Determine if a rule is valid."""
+        valid = True
+
+        if 'command' in rule and type(rule['command']) is unicode:
+            # The rules file has a string for a command. Normalize it into an
+            # array.
+            rule['command'] = [rule['command']]
+        elif ('command' in rule and type(rule['command']) is list and
+              len(rule['command']) > 0):
+            # The rules file has an array. Ensure all elements are strings.
+            for cmd in rule['command']:
+                if type(cmd) is not unicode:
+                    valid = False
+                    break
+        else:
+            valid = False
+
+        if 'match' not in rule or type(rule['match']) is not unicode:
+            valid = False
+
+        if not valid:
+            log.info('Ignoring malformed rule: {0}'.format(rule))
+
+        return valid
+
+
+    def load_rules(self, filepath, empty_rules):
+        """Load the JSON rules file and explode the data."""
+        # Now validate that each rule has the required values.
+
+        if empty_rules:
+            return {
+                'rules': {'file': [], 'folder': []},
+                'ignore': {'file': [], 'folder': []}
+            }
+
+        log.info('Loading rule file: {0}'.format(filepath))
+        rulefile = open(filepath, 'r')
+        full = json.loads(''.join(rulefile.readlines()))
+        rulefile.close()
+
+        if 'rules' not in full:
+            raise Exception('No rules found in rules file. Looking for top '
+                            'level "rules".')
+        rules = full['rules']
+
+        # process assumes that both 'file' and 'folder' rules exist under
+        # rules. Ensure they do. If neither exist, throw an error. Something
+        # needs to be defined.
+        if 'file' not in rules and 'folder' not in rules:
+            raise Exception('No rules found in rules file. Looking for "file" '
+                            'and/or "folder".')
+        else:
+            for typekey in ['file', 'folder']:
+                if typekey not in rules:
+                    log.debug('{0} rules not found, adding empty ruleset.'
+                              .format(typekey))
+                    rules[typekey] = []
+
+        # No need to ensure any ignore list exists, it's optional.
+        ignore = full['ignore'] if 'ignore' in full else {}
+        for typekey in ['file', 'folder']:
+            if typekey not in ignore:
+                ignore[typekey] = []
+
+        def validate_ignore(ignore):
+            """Returns false for empty or non-strings."""
+            return type(ignore) == unicode and len(ignore) > 0
+
+        rfi = [x for x in rules['file'] if self.validate_rule(x)]
+        rfo = [x for x in rules['folder'] if self.validate_rule(x)]
+        ifi = [x for x in ignore['file'] if validate_ignore(x)]
+        ifo = [x for x in ignore['folder'] if validate_ignore(x)]
         return {
-            'rules': {'file': [], 'folder': []},
-            'ignore': {'file': [], 'folder': []}
+            'rules': {'file': rfi, 'folder': rfo},
+            'ignore': {'file': ifi, 'folder': ifo}
         }
 
-    log.info('Loading rule file: {0}'.format(filepath))
-    rulefile = open(filepath, 'r')
-    full = json.loads(''.join(rulefile.readlines()))
-    rulefile.close()
 
-    if 'rules' not in full:
-        raise Exception('No rules found in rules file. Looking for top level '
-                        '"rules".')
-    rules = full['rules']
+    def process(self, targets, rules, case_insensitive):
+        """Process targets using the rules.
 
-    # process assumes that both 'file' and 'folder' rules exist under rules.
-    # Ensure they do. If neither exist, throw an error. Something needs to be
-    # defined.
-    if 'file' not in rules and 'folder' not in rules:
-        raise Exception('No rules found in rules file. Looking for "file" '
-                        'and/or "folder".')
-    else:
-        for typekey in ['file', 'folder']:
-            if typekey not in rules:
-                log.debug('{0} rules not found, adding empty ruleset.'
-                          .format(typekey))
-                rules[typekey] = []
+        Iterate through the targets looking for rule matches. There should be a
+        set of rules for files and another for folders.
+        """
+        log.info('To process:\n{0}'.format(pformat(targets)))
+        log.debug('Rules:\n{0}'.format(pformat(rules)))
 
-    # No need to ensure any ignore list exists, it's optional.
-    ignore = full['ignore'] if 'ignore' in full else {}
-    for typekey in ['file', 'folder']:
-        if typekey not in ignore:
-            ignore[typekey] = []
+        processed = []
+        unprocessed = []
+        flags = re.IGNORECASE if case_insensitive else 0
 
-    def validate_ignore(ignore):
-        """Returns false for empty or non-strings."""
-        return type(ignore) == unicode and len(ignore) > 0
+        def format_cmd(cmd, target):
+            """Format the command depending on the target type."""
+            path = '"{0}"'.format(target[0])
 
-    rfi = [x for x in rules['file'] if validate_rule(x)]
-    rfo = [x for x in rules['folder'] if validate_rule(x)]
-    ifi = [x for x in ignore['file'] if validate_ignore(x)]
-    ifo = [x for x in ignore['folder'] if validate_ignore(x)]
-    return {
-        'rules': {'file': rfi, 'folder': rfo},
-        'ignore': {'file': ifi, 'folder': ifo}
-    }
+            # If it is a directory.
+            if target[1]:
+                return cmd.format(path=path)
+            else:
+                filepath = '"{0}"'.format(os.path.basename(target[0]))
+                return cmd.format(path=path, file=filepath)
 
-
-def process(targets, rules, case_insensitive):
-    """Process targets using the rules.
-
-    Iterate through the targets looking for rule matches. There should be a set
-    of rules for files and another for folders.
-    """
-    log.info('To process:\n{0}'.format(pformat(targets)))
-    log.debug('Rules:\n{0}'.format(pformat(rules)))
-
-    processed = []
-    unprocessed = []
-    flags = re.IGNORECASE if case_insensitive else 0
-
-    def format_cmd(cmd, target):
-        """Format the command depending on the target type."""
-        path = '"{0}"'.format(target[0])
-
-        # If it is a directory.
-        if target[1]:
-            return cmd.format(path=path)
-        else:
-            filepath = '"{0}"'.format(os.path.basename(target[0]))
-            return cmd.format(path=path, file=filepath)
-
-    for target in targets:
-        matched = False
-        try:
-            typekey = 'folder' if target[1] else 'file'
-            output = '\n'
-
-            # Look for matching rules based on the type.
-            for rule in rules['rules'][typekey]:
-                if re.match(rule['match'], target[0], flags):
-                    log.info('Found a match: {0} with {1}, type {2}'
-                             .format(target[0], rule['match'], typekey))
-                    for cmd in rule['command']:
-                        cmd = format_cmd(cmd, target)
-                        output += '> ' + cmd + '\n'
-                        out_unicode = subprocess.check_output(shlex.split(cmd))
-                        output += out_unicode.decode('utf-8')
-                    matched = True
-                    break
-        except subprocess.CalledProcessError as err:
+        for target in targets:
             matched = False
-            log.warn('Command failed.\nCommand: {0}\nOutput: {1}'
-                     .format(err.cmd, err.output))
-            log.warn(output)
-            log.exception('', exc_info=True)
-        except (OSError, UnicodeDecodeError):
-            matched = False
-            log.warn(output)
-            log.exception('', exc_info=True)
+            try:
+                typekey = 'folder' if target[1] else 'file'
+                output = '\n'
 
-        if matched:
-            log.warn(output)
-            processed.append(target)
+                # Look for matching rules based on the type.
+                for rule in rules['rules'][typekey]:
+                    if re.match(rule['match'], target[0], flags):
+                        log.info('Found a match: {0} with {1}, type {2}'
+                                 .format(target[0], rule['match'], typekey))
+                        for cmd in rule['command']:
+                            cmd = format_cmd(cmd, target)
+                            output += '> ' + cmd + '\n'
+                            out_uni = subprocess.check_output(shlex.split(cmd))
+                            output += out_uni.decode('utf-8')
+                        matched = True
+                        break
+            except subprocess.CalledProcessError as err:
+                matched = False
+                log.warn('Command failed.\nCommand: {0}\nOutput: {1}'
+                         .format(err.cmd, err.output))
+                log.warn(output)
+                log.exception('', exc_info=True)
+            except (OSError, UnicodeDecodeError):
+                matched = False
+                log.warn(output)
+                log.exception('', exc_info=True)
+
+            if matched:
+                log.warn(output)
+                processed.append(target)
+            else:
+                unprocessed.append(target)
+
+        return processed, unprocessed
+
+
+    def summarize(self, processed, unprocessed):
+        """Output a summary of processed and unprocessed targets."""
+        summary = 'Summary:\nProcessed:\n\t'
+
+        if len(processed):
+            summary += '\n\t'.join([x[0] for x in processed])
         else:
-            unprocessed.append(target)
+            summary += 'None'
 
-    return processed, unprocessed
+        summary += '\n\nUnmatched:\n\t'
 
+        if len(unprocessed):
+            summary += '\n\t'.join([x[0] for x in unprocessed])
+        else:
+            summary += 'None'
 
-def summarize(processed, unprocessed):
-    """Output a summary of processed and unprocessed targets."""
-    summary = 'Summary:\nProcessed:\n\t'
-
-    if len(processed):
-        summary += '\n\t'.join([x[0] for x in processed])
-    else:
-        summary += 'None'
-
-    summary += '\n\nUnmatched:\n\t'
-
-    if len(unprocessed):
-        summary += '\n\t'.join([x[0] for x in unprocessed])
-    else:
-        summary += 'None'
-
-    log.warn(summary)
-    return summary
+        log.warn(summary)
+        return summary
 
 
-def save_storage_fle(filepath, processed):
-    """Output the processed list to a file."""
-    log.info('Write processed list: {0}'.format(filepath))
-    log.debug('Value:\n{0}'.format(pformat(processed)))
-    storagefile = open(filepath, 'w')
-    storagefile.write(json.dumps(processed, sort_keys=True, indent=4,
-                                 separators=(',', ': ')))
-    storagefile.write('\n')
-    storagefile.close()
-
-
-def load_storage_file(filepath):
-    """Attempt to load the saved processed list.
-
-    Load the saved file, parse the json, and return the list. If the file
-    doesn't exist, catch the exception, log out a statement, and return an
-    empty list.
-    """
-    try:
-        log.info('Loading previously processed file: {0}'.format(filepath))
-        storagefile = open(filepath, 'r')
-        lines = storagefile.readlines()
-        lines = json.loads(''.join(lines))
-        log.debug('Value:\n{0}'.format(pformat(lines)))
+    def save_storage_fle(self, filepath, processed):
+        """Output the processed list to a file."""
+        log.info('Write processed list: {0}'.format(filepath))
+        log.debug('Value:\n{0}'.format(pformat(processed)))
+        storagefile = open(filepath, 'w')
+        storagefile.write(json.dumps(processed, sort_keys=True, indent=4,
+                                     separators=(',', ': ')))
+        storagefile.write('\n')
         storagefile.close()
-        return lines
-    except IOError:
-        log.debug('Anticipated error loading processed file.', exc_info=True)
-        return []
+
+
+    def load_storage_file(self, filepath):
+        """Attempt to load the saved processed list.
+
+        Load the saved file, parse the json, and return the list. If the file
+        doesn't exist, catch the exception, log out a statement, and return an
+        empty list.
+        """
+        try:
+            log.info('Loading previously processed file: {0}'.format(filepath))
+            storagefile = open(filepath, 'r')
+            lines = storagefile.readlines()
+            lines = json.loads(''.join(lines))
+            log.debug('Value:\n{0}'.format(pformat(lines)))
+            storagefile.close()
+            return lines
+        except IOError:
+            log.debug('Anticipated error loading processed file.', exc_info=True)
+            return []
 
 if __name__ == '__main__':
     minister()
