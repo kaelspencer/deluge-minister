@@ -270,16 +270,17 @@ class Minister(object):
         unprocessed = []
         flags = re.IGNORECASE if case_insensitive else 0
 
-        def format_cmd(cmd, target):
+        def format_cmd(cmd, target, regex_matched_dict):
             """Format the command depending on the target type."""
             path = '"{0}"'.format(target[0])
 
-            # If it is a directory.
             if target[1]:
+                # If it is a directory.
                 return cmd.format(path=path)
             else:
+                # Else, it's a file.
                 filepath = '"{0}"'.format(os.path.basename(target[0]))
-                return cmd.format(path=path, file=filepath)
+                return cmd.format(path=path, file=filepath, **regex_matched_dict)
 
         for target in targets:
             matched = False
@@ -289,23 +290,29 @@ class Minister(object):
 
                 # Look for matching rules based on the type.
                 for rule in rules['rules'][typekey]:
-                    if re.match(rule['match'], target[0], flags):
+                    match = re.match(rule['match'], target[0], flags)
+                    if match is not None:
                         log.info('Found a match: {0} with {1}, type {2}'.format(target[0], rule['match'], typekey))
                         for cmd in rule['command']:
-                            cmd = format_cmd(cmd, target)
+                            cmd = format_cmd(cmd, target, match.groupdict())
                             output += '> ' + cmd + '\n'
-                            out_uni = subprocess.check_output(shlex.split(cmd))
-                            output += out_uni.decode('utf-8')
+                            output += subprocess.check_output(shlex.split(cmd)).decode('utf-8')
                         matched = True
                         break
             except subprocess.CalledProcessError as err:
                 matched = False
-                log.warn('Command failed.\nCommand: {0}\nOutput: {1}'.format(err.cmd, err.output))
-                log.warn(output)
+                log.error('Command failed.\nCommand: {0}\nOutput: {1}'.format(err.cmd, err.output))
+                log.warn('Output buffer:\n{0}'.format(output))
+                log.exception('', exc_info=True)
+            except KeyError as err:
+                # Failed to format the command.
+                matched = False
+                log.error('Formatting command failed. Typo in named groups?')
+                log.warn('Output buffer:\n{0}'.format(output))
                 log.exception('', exc_info=True)
             except (OSError, UnicodeDecodeError):
                 matched = False
-                log.warn(output)
+                log.warn('Output buffer:\n{0}'.format(output))
                 log.exception('', exc_info=True)
 
             if matched:
