@@ -15,8 +15,7 @@ import subprocess
 import StringIO
 
 logging.basicConfig(
-    format='%(asctime)-15s %(levelname)-8s %(filename)s:%(lineno)d: '
-           '%(message)s',
+    format='%(asctime)-15s %(levelname)-8s %(filename)s:%(lineno)d: %(message)s',
     level=logging.WARNING)
 log = logging.getLogger(__name__)
 log_string = StringIO.StringIO()
@@ -24,46 +23,31 @@ log.addHandler(logging.StreamHandler(log_string))
 
 
 @click.command()
-@click.argument('target', type=click.Path(exists=True, file_okay=False,
-                                          resolve_path=True))
-@click.argument('rulefile', type=click.Path(exists=True, file_okay=True,
-                                            resolve_path=True))
+@click.argument('target', type=click.Path(exists=True, file_okay=False, resolve_path=True))
+@click.argument('rulefile', type=click.Path(exists=True, file_okay=True, resolve_path=True))
 @click.option('-s', '--storage-file', default='minister-storage.json',
-              help='The file location to store processed files so duplication '
-              'doesn\'t happen in the future.')
-@click.option('--email-recipient', help='Recipient\'s email address. Requires '
-              'username and password options.')
-@click.option('--email-username', help='Sender\'s email address. Requires '
-              'password and recipient options.')
-@click.option('--email-password', help='Sender\'s email password. Requires '
-              'username and recipient options.')
-@click.option('--email-server', default='smtp.gmail.com',
-              help='SMTP email server. Default: smtp.gmail.com')
-@click.option('--email-port', default=587,
-              help='SMTP server port. Default: 587')
-@click.option('--email-always', is_flag=True, help='Normally email is only '
-              'sent when new files are detected. This flag causes an email to '
-              'be sent always.')
-@click.option('-d', '--depth', default=0, help='How many directories to '
-              'descend into. All files encountered will be added but only '
-              'folders at provided depth. Default 0.')
-@click.option('--populate', is_flag=True, help='Populate the storage file '
-              'normally except the rules will be ignored.')
-@click.option('--case-insensitive', is_flag=True, help='Regular expressions '
-              'are case insensitive.')
-@click.option('-v', '--verbose', count=True,
-              help='Logging verbosity, -vv for very verbose.')
-def minister(target, rulefile, depth, storage_file, verbose, email_username,
-             email_password, email_server, email_port, email_recipient,
-             populate, email_always, case_insensitive):
+              help='The file location to store processed files so duplication doesn\'t happen in the future.')
+@click.option('--email-recipient', help='Recipient\'s email address. Requires username and password options.')
+@click.option('--email-username', help='Sender\'s email address. Requires password and recipient options.')
+@click.option('--email-password', help='Sender\'s email password. Requires username and recipient options.')
+@click.option('--email-server', default='smtp.gmail.com', help='SMTP email server. Default: smtp.gmail.com')
+@click.option('--email-port', default=587, help='SMTP server port. Default: 587')
+@click.option('--email-always', is_flag=True,
+              help='Normally email is only sent when new files are detected. This flag causes an email to be sent always.')
+@click.option('-d', '--depth', default=0,
+              help='How many directories to descend into. All files encountered will be added but only folders at provided depth. Default 0.')
+@click.option('--populate', is_flag=True, help='Populate the storage file normally except the rules will be ignored.')
+@click.option('--case-insensitive', is_flag=True, help='Regular expressions are case insensitive.')
+@click.option('-v', '--verbose', count=True, help='Logging verbosity, -vv for very verbose.')
+def minister(target, rulefile, depth, storage_file, verbose, email_username, email_password, email_server, email_port,
+             email_recipient, populate, email_always, case_insensitive):
     """Kick off the minister work."""
     if verbose == 1:
         log.setLevel(logging.INFO)
     elif verbose != 0:
         log.setLevel(logging.DEBUG)
 
-    mailer = LogEmailer(email_username, email_password, email_server,
-                        email_port)
+    mailer = LogEmailer(email_username, email_password, email_server, email_port)
     minstr = Minister(depth, populate, case_insensitive)
     minstr.run(target, rulefile, storage_file)
     minstr.sendmail(mailer, email_recipient, email_always)
@@ -91,11 +75,9 @@ class LogEmailer(object):
             return
 
         log.info('Start sending email.')
-        fmt = '<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body>' \
-              '</html>'
+        fmt = '<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body></html>'
         msg = MIMEText(fmt.format(summary, body.encode('utf-8')), 'html')
-        msg['Subject'] = 'deluge-minister log at {0}'.format(
-            datetime.now().isoformat())
+        msg['Subject'] = 'deluge-minister log at {0}'.format(datetime.now().isoformat())
         msg['From'] = self.username
         msg['To'] = recipient
 
@@ -113,8 +95,7 @@ class LogEmailer(object):
 
     def valid(self, recipient):
         """Determines if the class has the proper values to send an email."""
-        if not self.server or not self.username or not self.password or \
-            not recipient:
+        if not self.server or not self.username or not self.password or not recipient:
             if self.username or self.password or recipient:
                 # Nothing being supplied means don't send the email. A subset
                 # being supplied is an error case.
@@ -139,13 +120,10 @@ class Minister(object):
         try:
             already_processed = self.load_storage_file(storage)
             rules = self.load_rules(rulefile, self.populate)
-            targets = self.iterate_input(target, self.depth, already_processed,
-                                         rules['ignore'])
-            self.processed, self.unprocessed = self.process(targets, rules,
-                                                  self.case_insensitive)
+            targets = self.iterate_input(target, self.depth, already_processed, rules['ignore'])
+            self.processed, self.unprocessed = self.process(targets, rules, self.case_insensitive)
 
-            self.save_storage_fle(storage,
-                                  [x[0] for x in targets] + already_processed)
+            self.save_storage_fle(storage, [x[0] for x in targets] + already_processed)
         except:
             log.exception('', exc_info=True)
 
@@ -177,14 +155,11 @@ class Minister(object):
             abs_path = '%s/%s' % (path, subdir)
             isdir = os.path.isdir(abs_path)
 
-            if self.should_be_included(abs_path, depth == 0, already_processed,
-                                       ignore):
+            if self.should_be_included(abs_path, depth == 0, already_processed, ignore):
                 result.append((abs_path, isdir))
 
-            if depth > 0 and isdir and not self.should_ignore(abs_path, isdir,
-                                                              ignore):
-                result.extend(self.iterate_input(abs_path, depth - 1,
-                                                 already_processed, ignore))
+            if depth > 0 and isdir and not self.should_ignore(abs_path, isdir, ignore):
+                result.extend(self.iterate_input(abs_path, depth - 1, already_processed, ignore))
         return result
 
 
@@ -201,8 +176,7 @@ class Minister(object):
         typekey = 'folder' if isdir else 'file'
         for ign in ignore[typekey]:
             if re.match(ign, path):
-                log.debug('Ignoring {0}, matched ignore rule {1}'
-                          .format(path, ign))
+                log.debug('Ignoring {0}, matched ignore rule {1}'.format(path, ign))
                 return True
         return False
 
@@ -215,8 +189,7 @@ class Minister(object):
             # The rules file has a string for a command. Normalize it into an
             # array.
             rule['command'] = [rule['command']]
-        elif ('command' in rule and type(rule['command']) is list and
-              len(rule['command']) > 0):
+        elif ('command' in rule and type(rule['command']) is list and len(rule['command']) > 0):
             # The rules file has an array. Ensure all elements are strings.
             for cmd in rule['command']:
                 if type(cmd) is not unicode:
@@ -250,21 +223,18 @@ class Minister(object):
         rulefile.close()
 
         if 'rules' not in full:
-            raise Exception('No rules found in rules file. Looking for top '
-                            'level "rules".')
+            raise Exception('No rules found in rules file. Looking for top level "rules".')
         rules = full['rules']
 
         # process assumes that both 'file' and 'folder' rules exist under
         # rules. Ensure they do. If neither exist, throw an error. Something
         # needs to be defined.
         if 'file' not in rules and 'folder' not in rules:
-            raise Exception('No rules found in rules file. Looking for "file" '
-                            'and/or "folder".')
+            raise Exception('No rules found in rules file. Looking for "file" and/or "folder".')
         else:
             for typekey in ['file', 'folder']:
                 if typekey not in rules:
-                    log.debug('{0} rules not found, adding empty ruleset.'
-                              .format(typekey))
+                    log.debug('{0} rules not found, adding empty ruleset.'.format(typekey))
                     rules[typekey] = []
 
         # No need to ensure any ignore list exists, it's optional.
@@ -320,8 +290,7 @@ class Minister(object):
                 # Look for matching rules based on the type.
                 for rule in rules['rules'][typekey]:
                     if re.match(rule['match'], target[0], flags):
-                        log.info('Found a match: {0} with {1}, type {2}'
-                                 .format(target[0], rule['match'], typekey))
+                        log.info('Found a match: {0} with {1}, type {2}'.format(target[0], rule['match'], typekey))
                         for cmd in rule['command']:
                             cmd = format_cmd(cmd, target)
                             output += '> ' + cmd + '\n'
@@ -331,8 +300,7 @@ class Minister(object):
                         break
             except subprocess.CalledProcessError as err:
                 matched = False
-                log.warn('Command failed.\nCommand: {0}\nOutput: {1}'
-                         .format(err.cmd, err.output))
+                log.warn('Command failed.\nCommand: {0}\nOutput: {1}'.format(err.cmd, err.output))
                 log.warn(output)
                 log.exception('', exc_info=True)
             except (OSError, UnicodeDecodeError):
@@ -374,8 +342,7 @@ class Minister(object):
         log.info('Write processed list: {0}'.format(filepath))
         log.debug('Value:\n{0}'.format(pformat(processed)))
         storagefile = open(filepath, 'w')
-        storagefile.write(json.dumps(processed, sort_keys=True, indent=4,
-                                     separators=(',', ': ')))
+        storagefile.write(json.dumps(processed, sort_keys=True, indent=4, separators=(',', ': ')))
         storagefile.write('\n')
         storagefile.close()
 
