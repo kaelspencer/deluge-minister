@@ -114,14 +114,26 @@ class Minister(object):
         self.processed = []
         self.unprocessed = []
 
+        self.rules = {
+                'rules': {'file': [], 'folder': []},
+                'ignore': {'file': [], 'folder': []},
+                'onComplete': {'command': [], 'onlyAfterMatch': True}
+            }
+
 
     def run(self, target, rulefile, storage):
         """Start the minister work."""
         try:
             already_processed = self.load_storage_file(storage)
-            rules = self.load_rules(rulefile, self.populate)
-            targets = self.iterate_input(target, self.depth, already_processed, rules['ignore'])
-            self.processed, self.unprocessed = self.process(targets, rules, self.case_insensitive)
+
+            # If the populate flag is set, don't load the rule file. This will cause all files to be
+            # added to the output file.
+            if not self.populate:
+                self.load_rules(rulefile)
+
+            targets = self.iterate_input(target, self.depth, already_processed)
+            self.processed, self.unprocessed = self.process(targets, self.rules, self.case_insensitive)
+            self.on_complete()
 
             self.save_storage_fle(storage, [x[0] for x in targets] + already_processed)
         except:
@@ -139,7 +151,7 @@ class Minister(object):
             mailer.send(recipient, summary, log_string.getvalue())
 
 
-    def iterate_input(self, path, depth, already_processed, ignore):
+    def iterate_input(self, path, depth, already_processed):
         """Recursively iterate through the path looking for items to process.
 
         Recursively descend through the path. All symbolic links are ignored.
@@ -155,34 +167,34 @@ class Minister(object):
             abs_path = '%s/%s' % (path, subdir)
             isdir = os.path.isdir(abs_path)
 
-            if self.should_be_included(abs_path, depth == 0, already_processed, ignore):
+            if self.should_be_included(abs_path, depth == 0, already_processed):
                 result.append((abs_path, isdir))
 
-            if depth > 0 and isdir and not self.should_ignore(abs_path, isdir, ignore):
-                result.extend(self.iterate_input(abs_path, depth - 1, already_processed, ignore))
+            if depth > 0 and isdir and not self.should_ignore(abs_path, isdir):
+                result.extend(self.iterate_input(abs_path, depth - 1, already_processed))
         return result
 
 
-    def should_be_included(self, path, at_depth, already_processed, ignore):
+    def should_be_included(self, path, at_depth, already_processed):
         """Determines if the path item should be processed."""
         isdir = os.path.isdir(path)
         return (at_depth or not isdir) \
             and path.decode('utf-8') not in already_processed \
-            and not self.should_ignore(path, isdir, ignore)
+            and not self.should_ignore(path, isdir)
 
 
-    def should_ignore(self, path, isdir, ignore):
+    def should_ignore(self, path, isdir):
         """Determines if the path should be ignored."""
         typekey = 'folder' if isdir else 'file'
-        for ign in ignore[typekey]:
+        for ign in self.rules['ignore'][typekey]:
             if re.match(ign, path):
                 log.debug('Ignoring {0}, matched ignore rule {1}'.format(path, ign))
                 return True
         return False
 
 
-    def validate_rule(self, rule):
-        """Determine if a rule is valid."""
+    def rule_has_command(self, rule):
+        """Determine if a rule has a valid command."""
         valid = True
 
         if 'command' in rule and type(rule['command']) is unicode:
@@ -198,24 +210,12 @@ class Minister(object):
         else:
             valid = False
 
-        if 'match' not in rule or type(rule['match']) is not unicode:
-            valid = False
-
-        if not valid:
-            log.info('Ignoring malformed rule: {0}'.format(rule))
-
         return valid
 
 
-    def load_rules(self, filepath, empty_rules):
+    def load_rules(self, filepath):
         """Load the JSON rules file and explode the data."""
         # Now validate that each rule has the required values.
-
-        if empty_rules:
-            return {
-                'rules': {'file': [], 'folder': []},
-                'ignore': {'file': [], 'folder': []}
-            }
 
         log.info('Loading rule file: {0}'.format(filepath))
         rulefile = open(filepath, 'r')
@@ -237,24 +237,47 @@ class Minister(object):
                     log.debug('{0} rules not found, adding empty ruleset.'.format(typekey))
                     rules[typekey] = []
 
+        def validate_ignore(ignore):
+            """Returns false for empty or non-strings."""
+            return type(ignore) == unicode and len(ignore) > 0
+
+        def validate_rule(rule):
+            """Returns false if the rule is invalid."""
+            valid = self.rule_has_command(rule)
+
+            if 'match' not in rule or type(rule['match']) is not unicode:
+                valid = False
+
+            if not valid:
+                log.info('Ignoring malformed rule: {0}'.format(rule))
+
+            return valid
+
+        # No need to ensure onComplete exists, it's optional.
+        if 'onComplete' in full:
+            oncomplete = full['onComplete']
+            if self.rule_has_command(oncomplete):
+                self.rules['onComplete']['command'] = oncomplete['command']
+
+                if 'onlyAfterMatch' in oncomplete and type(oncomplete['onlyAfterMatch']) is bool:
+                    self.rules['onComplete']['onlyAfterMatch'] = oncomplete['onlyAfterMatch']
+                else:
+                    self.rules['onComplete']['onlyAfterMatch'] = True
+                    log.info('Malformed onComplete.onlyAfterMatch, defaulting to True.')
+            else:
+                # Leave self.rules['onComplete'] in the default state.
+                log.info('Ignoring malformed rule for onComplete.')
+
         # No need to ensure any ignore list exists, it's optional.
         ignore = full['ignore'] if 'ignore' in full else {}
         for typekey in ['file', 'folder']:
             if typekey not in ignore:
                 ignore[typekey] = []
 
-        def validate_ignore(ignore):
-            """Returns false for empty or non-strings."""
-            return type(ignore) == unicode and len(ignore) > 0
-
-        rfi = [x for x in rules['file'] if self.validate_rule(x)]
-        rfo = [x for x in rules['folder'] if self.validate_rule(x)]
-        ifi = [x for x in ignore['file'] if validate_ignore(x)]
-        ifo = [x for x in ignore['folder'] if validate_ignore(x)]
-        return {
-            'rules': {'file': rfi, 'folder': rfo},
-            'ignore': {'file': ifi, 'folder': ifo}
-        }
+        self.rules['rules']['file'] = [x for x in rules['file'] if validate_rule(x)]
+        self.rules['rules']['folder'] = [x for x in rules['folder'] if validate_rule(x)]
+        self.rules['ignore']['file'] = [x for x in ignore['file'] if validate_ignore(x)]
+        self.rules['ignore']['folder'] = [x for x in ignore['folder'] if validate_ignore(x)]
 
 
     def process(self, targets, rules, case_insensitive):
@@ -372,6 +395,30 @@ class Minister(object):
         except IOError:
             log.debug('Anticipated error loading processed file.', exc_info=True)
             return []
+
+
+    def on_complete(self):
+        """Run the onComplete commands if necessary."""
+        onlyaftermatch = self.rules['onComplete']['onlyAfterMatch']
+
+        # Only process the onComplete if the flag says to run it always or if there are processed items.
+        if not onlyaftermatch or len(self.processed) > 0:
+            try:
+                output = '\n'
+
+                for cmd in self.rules['onComplete']['command']:
+                    output += '> ' + cmd + '\n'
+                    output += subprocess.check_output(shlex.split(cmd)).decode('utf-8')
+            except subprocess.CalledProcessError as err:
+                log.error('Command failed.\nCommand: {0}\nOutput: {1}'.format(err.cmd, err.output))
+                log.warn('Output buffer:\n{0}'.format(output))
+                log.exception('', exc_info=True)
+            except (OSError, UnicodeDecodeError):
+                log.warn('Output buffer:\n{0}'.format(output))
+                log.exception('', exc_info=True)
+
+            log.warn(output)
+
 
 if __name__ == '__main__':
     minister()

@@ -17,5 +17,9 @@
         "folder": [
             "(.*)Sample$"
         ]
+    },
+    "onComplete": {
+        "command": "echo 'Complete!'",
+        "onlyAfterMatch": true
     }
 }
