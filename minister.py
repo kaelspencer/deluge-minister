@@ -78,8 +78,8 @@ class LogEmailer(object):
             return
 
         log.info('Start sending email.')
-        fmt = '<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body></html>'
-        msg = MIMEText(fmt.format(summary, body.encode('utf-8')), 'html')
+        fmt = u'<html><body><pre><code>{0}<br/><br/>{1}</code></pre></body></html>'
+        msg = MIMEText(fmt.format(summary, body), 'html', _charset="UTF-8")
         msg['Subject'] = 'deluge-minister log at {0}'.format(datetime.now().isoformat())
         msg['From'] = self.username
         msg['To'] = recipient
@@ -191,7 +191,7 @@ class Minister(object):
         typekey = 'folder' if isdir else 'file'
         for ign in self.rules['ignore'][typekey]:
             if re.match(ign, path):
-                log.debug('Ignoring {0}, matched ignore rule {1}'.format(path, ign))
+                log.debug(u'Ignoring {0}, matched ignore rule {1}'.format(path, ign))
                 return True
         return False
 
