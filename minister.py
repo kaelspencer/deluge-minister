@@ -47,6 +47,9 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username, ema
     elif verbose != 0:
         log.setLevel(logging.DEBUG)
 
+    # The filenames could be Unicode. To get the result from os.* as Unicode strings, pass in a Unicode path.
+    target = unicode(target)
+
     mailer = LogEmailer(email_username, email_password, email_server, email_port)
     minstr = Minister(depth, populate, case_insensitive)
     minstr.run(target, rulefile, storage_file)
@@ -179,7 +182,7 @@ class Minister(object):
         """Determines if the path item should be processed."""
         isdir = os.path.isdir(path)
         return (at_depth or not isdir) \
-            and path.decode('utf-8') not in already_processed \
+            and path not in already_processed \
             and not self.should_ignore(path, isdir)
 
 
@@ -295,14 +298,14 @@ class Minister(object):
 
         def format_cmd(cmd, target, regex_matched_dict):
             """Format the command depending on the target type."""
-            path = '"{0}"'.format(target[0])
+            path = u'"{0}"'.format(target[0])
 
             if target[1]:
                 # If it is a directory.
                 return cmd.format(path=path)
             else:
                 # Else, it's a file.
-                filepath = '"{0}"'.format(os.path.basename(target[0]))
+                filepath = u'"{0}"'.format(os.path.basename(target[0]))
                 return cmd.format(path=path, file=filepath, **regex_matched_dict)
 
         for target in targets:
@@ -315,11 +318,11 @@ class Minister(object):
                 for rule in rules['rules'][typekey]:
                     match = re.match(rule['match'], target[0], flags)
                     if match is not None:
-                        log.info('Found a match: {0} with {1}, type {2}'.format(target[0], rule['match'], typekey))
+                        log.info(u'Found a match: {0} with {1}, type {2}'.format(target[0], rule['match'], typekey))
                         for cmd in rule['command']:
                             cmd = format_cmd(cmd, target, match.groupdict())
                             output += '> ' + cmd + '\n'
-                            output += subprocess.check_output(shlex.split(cmd)).decode('utf-8')
+                            output += subprocess.check_output(shlex.split(cmd.encode('utf-8'))).decode('utf-8')
                         matched = True
                         break
             except subprocess.CalledProcessError as err:
