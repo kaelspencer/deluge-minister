@@ -354,6 +354,9 @@ class Minister(object):
         """Output a summary of processed and unprocessed targets."""
         summary = 'Summary:\nProcessed:\n\t'
 
+        processed.sort()
+        unprocessed.sort()
+
         if len(processed):
             summary += '\n\t'.join([x[0] for x in processed])
         else:
