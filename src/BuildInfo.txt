@@ -5,3 +5,7 @@ https://libcxx.llvm.org/docs/BuildingLibcxx.html
 This compiled cleanly when including the coroutine header, but it isn't actually linking against the correct libc++ lib.
 
 clang++-5.0 -std=c++17 -stdlib=libc++ main.cpp -o consumer.out -nostdinc++ -I"/home/kael/code/OpenSource/llvm/projects/libcxx/include/" -fcoroutines-ts
+
+
+CC=clang-5.0
+CXX=clang++5.0
