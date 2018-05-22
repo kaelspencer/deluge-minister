@@ -305,7 +305,7 @@ class Minister(object):
                 return cmd.format(path=path)
             else:
                 # Else, it's a file.
-                filepath = u'"{0}"'.format(os.path.basename(target[0]))
+                filepath = u'{0}'.format(os.path.basename(target[0]))
                 return cmd.format(path=path, file=filepath, **regex_matched_dict)
 
         for target in targets:
