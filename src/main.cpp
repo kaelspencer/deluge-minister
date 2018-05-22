@@ -8,6 +8,8 @@
 #include <experimental/string_view>
 #include <chrono>
 #include <experimental/coroutine>
+#include "coroutine_types.h"
+#include <future>
 
 class NamedPipeReader
 {
@@ -113,9 +115,33 @@ private:
     int m_pollTimeoutMS = 5000;
 };
 
+generator<int> f()
+{
+    for (int i = 0; i < 5; i++)
+    {
+        co_yield i;
+        sleep(3);
+    }
+}
+
+std::future<int> g()
+{
+    co_return 23;
+}
+
 // https://stackoverflow.com/questions/15055065/o-rdwr-on-named-pipes-with-poll
 int main()
 {
+    int v = co_await g();
+    printf("%d", v);
+    fflush(stdout);
+
+    for (auto i : f())
+    {
+        printf("%d", i);
+        fflush(stdout);
+    }
+
     // https://linux.die.net/man/3/mkfifo
     mkfifo("foo.pipe", 0777);
 
