@@ -7,6 +7,7 @@ from pprint import pformat
 import click
 import json
 import logging
+import logging.handlers
 import os
 import re
 import shlex
@@ -20,6 +21,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 log_string = StringIO.StringIO()
 log.addHandler(logging.StreamHandler(log_string))
+log.addHandler(logging.handlers.RotatingFileHandler('logs/minister.log', maxBytes=10485760, backupCount=10))
 
 
 @click.command()
