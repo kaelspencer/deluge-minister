@@ -9,11 +9,14 @@
 #include <chrono>
 // #include <experimental/coroutine>
 
+#include "Logger.h"
+
 class NamedPipeReader
 {
 public:
     NamedPipeReader(std::experimental::string_view pipePath) :
-        m_pipePath(pipePath)
+        m_pipePath(pipePath),
+        m_logger(LogLevel::Debug)
     {};
 
     virtual ~NamedPipeReader()
@@ -49,21 +52,19 @@ public:
                 if (pfd.revents & POLLIN)
                 {
                     // Something was written to the pipe.
-                    printf("Poll result: %d, POLLIN received\n", pollResult);
+                    m_logger.Log(LogLevel::Normal, "Poll result: %d, POLLIN received", pollResult);
 
                     ReadAndPrintPipe();
                 }
                 else if (pfd.revents & POLLHUP)
                 {
-                    printf("Poll result: %d, POLLHUP received, reopening file\n", pollResult);
+                    m_logger.Log(LogLevel::Normal, "Poll result: %d, POLLHUP received, reopening file", pollResult);
                     ReopenFile();
                 }
                 else
                 {
-                    printf("Poll result: %d, revents: %d\n", pollResult, pfd.revents);
+                    m_logger.Log(LogLevel::Normal, "Poll result: %d, revents: %d", pollResult, pfd.revents);
                 }
-
-                fflush(stdout);
             }
         }
     }
@@ -78,7 +79,7 @@ private:
 
         // This combination of flags for open will not block.
         m_pipeFileDescriptor = ::open(m_pipePath.c_str(), O_RDONLY | O_NONBLOCK);
-        puts("Opened file");
+        m_logger.Log(LogLevel::Normal, "Opened file");
     }
 
     void ReadAndPrintPipe()
@@ -89,7 +90,7 @@ private:
         if (result == -1 && errno == EAGAIN)
         {
             // We need to go back to poll().
-            puts("Received EAGAIN from read");
+            m_logger.Log(LogLevel::Normal, "Received EAGAIN from read");
             return;
         }
 
@@ -99,18 +100,19 @@ private:
         }
         else if (result == 0)
         {
-            puts("read returned 0, closing and reopening file");
+            m_logger.Log(LogLevel::Normal, "read returned 0, closing and reopening file");
             ReopenFile();
         }
         else
         {
-            puts(buf);
+            m_logger.Log(LogLevel::Normal, buf);
         }
     }
 
     std::string m_pipePath;
     int m_pipeFileDescriptor = 0;
     int m_pollTimeoutMS = 5000;
+    Logger m_logger;
 };
 
 // https://stackoverflow.com/questions/15055065/o-rdwr-on-named-pipes-with-poll

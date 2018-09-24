@@ -1,0 +1,5 @@
+cc_binary(
+    name = "deluge-minister",
+    srcs = ["src/main.cpp", "src/AppArguments.cpp"],
+    copts = ["-Iinc"],
+)
