@@ -1,0 +1,25 @@
+{
+    "rules": {
+        "file": [{
+            "match": "(.*)S[0-9]{2}E[0-9]{2}(.*)(mkv|mp4|avi)$",
+            "command": "echo {file}"
+        },{
+            "match": "(.*)[0-9]{4}(-|\\.)[0-9]{2}(-|\\.)[0-9]{2}(.*)(mkv|mp4|avi)$",
+            "command": "echo {path}"
+        }],
+        "folder": []
+    },
+    "ignore": {
+        "file": [
+            "(.*)(nfo|srt)$",
+            "(.*)r[0-9]{2}$"
+        ],
+        "folder": [
+            "(.*)Sample$"
+        ]
+    },
+    "onComplete": {
+        "command": "echo 'Complete! Now with Unicode: ǯ'",
+        "onlyAfterMatch": true
+    }
+}

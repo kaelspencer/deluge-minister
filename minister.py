@@ -13,13 +13,13 @@ import re
 import shlex
 import smtplib
 import subprocess
-import StringIO
+import io
 
 logging.basicConfig(
     format='%(asctime)-15s %(levelname)-8s %(filename)s:%(lineno)d: %(message)s',
     level=logging.WARNING)
 log = logging.getLogger(__name__)
-log_string = StringIO.StringIO()
+log_string = io.StringIO()
 log.addHandler(logging.StreamHandler(log_string))
 log.addHandler(logging.handlers.RotatingFileHandler('logs/minister.log', maxBytes=10485760, backupCount=10))
 
@@ -48,9 +48,6 @@ def minister(target, rulefile, depth, storage_file, verbose, email_username, ema
         log.setLevel(logging.INFO)
     elif verbose != 0:
         log.setLevel(logging.DEBUG)
-
-    # The filenames could be Unicode. To get the result from os.* as Unicode strings, pass in a Unicode path.
-    target = unicode(target)
 
     mailer = LogEmailer(email_username, email_password, email_server, email_port)
     minstr = Minister(depth, populate, case_insensitive)
@@ -120,10 +117,10 @@ class Minister(object):
         self.unprocessed = []
 
         self.rules = {
-                'rules': {'file': [], 'folder': []},
-                'ignore': {'file': [], 'folder': []},
-                'onComplete': {'command': [], 'onlyAfterMatch': True}
-            }
+            'rules': {'file': [], 'folder': []},
+            'ignore': {'file': [], 'folder': []},
+            'onComplete': {'command': [], 'onlyAfterMatch': True}
+        }
 
 
     def run(self, target, rulefile, storage):
@@ -202,14 +199,13 @@ class Minister(object):
         """Determine if a rule has a valid command."""
         valid = True
 
-        if 'command' in rule and type(rule['command']) is unicode:
-            # The rules file has a string for a command. Normalize it into an
-            # array.
+        if 'command' in rule and type(rule['command']) is str:
+            # The rules file has a string for a command. Normalize it into an array.
             rule['command'] = [rule['command']]
-        elif ('command' in rule and type(rule['command']) is list and len(rule['command']) > 0):
+        elif 'command' in rule and type(rule['command']) is list and len(rule['command']) > 0:
             # The rules file has an array. Ensure all elements are strings.
             for cmd in rule['command']:
-                if type(cmd) is not unicode:
+                if type(cmd) is not str:
                     valid = False
                     break
         else:
@@ -244,13 +240,13 @@ class Minister(object):
 
         def validate_ignore(ignore):
             """Returns false for empty or non-strings."""
-            return type(ignore) == unicode and len(ignore) > 0
+            return type(ignore) == str and len(ignore) > 0
 
         def validate_rule(rule):
             """Returns false if the rule is invalid."""
             valid = self.rule_has_command(rule)
 
-            if 'match' not in rule or type(rule['match']) is not unicode:
+            if 'match' not in rule or type(rule['match']) is not str:
                 valid = False
 
             if not valid:
@@ -324,27 +320,24 @@ class Minister(object):
                         for cmd in rule['command']:
                             cmd = format_cmd(cmd, target, match.groupdict())
                             output += '> ' + cmd + '\n'
-                            output += subprocess.check_output(shlex.split(cmd.encode('utf-8'))).decode('utf-8')
+                            output += subprocess.check_output(shlex.split(cmd)).decode('utf-8')
                         matched = True
                         break
             except subprocess.CalledProcessError as err:
-                matched = False
                 log.error('Command failed.\nCommand: {0}\nOutput: {1}'.format(err.cmd, err.output))
-                log.warn('Output buffer:\n{0}'.format(output))
+                log.warning('Output buffer:\n{0}'.format(output))
                 log.exception('', exc_info=True)
             except KeyError as err:
                 # Failed to format the command.
-                matched = False
                 log.error('Formatting command failed. Typo in named groups?')
-                log.warn('Output buffer:\n{0}'.format(output))
+                log.warning('Output buffer:\n{0}'.format(output))
                 log.exception('', exc_info=True)
-            except (OSError, UnicodeDecodeError):
-                matched = False
-                log.warn('Output buffer:\n{0}'.format(output))
+            except:
+                log.warning('Output buffer:\n{0}'.format(output))
                 log.exception('', exc_info=True)
 
             if matched:
-                log.warn(output)
+                log.warning(output)
                 processed.append(target)
             else:
                 unprocessed.append(target)
@@ -371,7 +364,7 @@ class Minister(object):
         else:
             summary += 'None'
 
-        log.warn(summary)
+        log.warning(summary)
         return summary
 
 
@@ -379,10 +372,9 @@ class Minister(object):
         """Output the processed list to a file."""
         log.info('Write processed list: {0}'.format(filepath))
         log.debug('Value:\n{0}'.format(pformat(processed)))
-        storagefile = open(filepath, 'w')
-        storagefile.write(json.dumps(processed, sort_keys=True, indent=4, separators=(',', ': ')))
-        storagefile.write('\n')
-        storagefile.close()
+        with open(filepath, 'w') as storagefile:
+            storagefile.write(json.dumps(processed, sort_keys=True, indent=4, separators=(',', ': '), ensure_ascii=False))
+            storagefile.write('\n')
 
 
     def load_storage_file(self, filepath):
@@ -394,11 +386,10 @@ class Minister(object):
         """
         try:
             log.info('Loading previously processed file: {0}'.format(filepath))
-            storagefile = open(filepath, 'r')
-            lines = storagefile.readlines()
-            lines = json.loads(''.join(lines))
-            log.debug('Value:\n{0}'.format(pformat(lines)))
-            storagefile.close()
+            with open(filepath, 'r') as storagefile:
+                lines = storagefile.readlines()
+                lines = json.loads(''.join(lines))
+                log.debug('Value:\n{0}'.format(pformat(lines)))
             return lines
         except IOError:
             log.debug('Anticipated error loading processed file.', exc_info=True)
@@ -419,13 +410,13 @@ class Minister(object):
                     output += subprocess.check_output(shlex.split(cmd)).decode('utf-8')
             except subprocess.CalledProcessError as err:
                 log.error('Command failed.\nCommand: {0}\nOutput: {1}'.format(err.cmd, err.output))
-                log.warn('Output buffer:\n{0}'.format(output))
+                log.warning('Output buffer:\n{0}'.format(output))
                 log.exception('', exc_info=True)
             except (OSError, UnicodeDecodeError):
-                log.warn('Output buffer:\n{0}'.format(output))
+                log.warning('Output buffer:\n{0}'.format(output))
                 log.exception('', exc_info=True)
 
-            log.warn(output)
+            log.warning(output)
 
 
 if __name__ == '__main__':
